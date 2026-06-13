@@ -432,9 +432,8 @@ public sealed class ContentManager
     private sealed class ContentDb
     {
         public int Version { get; set; }
-    public ContentItem[] Items { get; set; } = [];
-    public int Version { get; set; }
-}
+        public ContentItem[] Items { get; set; } = [];
+    }
 }
 ```
 
