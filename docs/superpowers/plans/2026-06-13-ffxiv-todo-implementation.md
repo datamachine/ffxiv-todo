@@ -6,7 +6,7 @@
 
 **Architecture:** Plugin + data layer separation. `ContentManager` loads bundled JSON, `ProgressStore` persists player progress, `ProgressScanner` auto-detects from journal/achievements. Two ImGui windows (main tree view + tracked overlay) read from `ContentManager`. Map flagging via Dalamud's map API.
 
-**Tech Stack:** C# (.NET 8), Dalamud SDK, ImGui.NET, System.Text.Json
+**Tech Stack:** C# (.NET 10 / C# 14), Dalamud SDK (API 14), Dalamud.NET.Sdk, System.Text.Json
 
 **Spec:** `docs/superpowers/specs/2026-06-13-ffxiv-todo-design.md`
 
@@ -16,10 +16,9 @@
 
 ```
 FfxivTodo/
-  FfxivTodo.csproj
-  FfxivTodo.json              # Dalamud manifest
-  Plugin.cs                   # IDalamudPlugin entry point
-  Configuration.cs            # Plugin configuration
+  FfxivTodo.csproj              # MSBuild project with Dalamud.NET.Sdk (includes manifest)
+  Plugin.cs                     # IDalamudPlugin entry point
+  Configuration.cs              # Plugin configuration
   Models/
     ContentItem.cs            # Bundled data model
     ProgressEntry.cs          # Player state model
@@ -41,54 +40,44 @@ FfxivTodo/
 ### Task 1: Project Scaffolding
 
 **Files:**
-- Create: `FfxivTodo/FfxivTodo.csproj`
-- Create: `FfxivTodo/FfxivTodo.json`
+- Create: `FfxivTodo/FfxivTodo.csproj` (includes Dalamud manifest properties via Dalamud.NET.Sdk)
 - Create: `FfxivTodo/Plugin.cs`
 - Create: `FfxivTodo/Configuration.cs`
 
 - [ ] **Step 1: Create project file**
 
 ```xml
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Dalamud.NET.Sdk">
+
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+    <Name>FFXIV Todo</Name>
+    <InternalName>FfxivTodo</InternalName>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <Punchline>Track non-MSQ content completion</Punchline>
+    <Description>Track unlocking and completion of all non-MSQ content across every expansion. Auto-detects progress from journal and achievements.</Description>
+    <ApplicableVersion>any</ApplicableVersion>
+    <Tags>quests;tracking;completion;todo</Tags>
+    <DalamudApiLevel>14</DalamudApiLevel>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="DalamudPackager" Version="*" PrivateAssets="all" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="$(AppData)\XIVLauncher\addon\Hooks\dev\Dalamud\Dalamud.csproj" Private="False" />
-  </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Data\content.json" />
   </ItemGroup>
+
 </Project>
 ```
 
-- [ ] **Step 2: Create Dalamud manifest**
+**Note:** `Dalamud.NET.Sdk` pins to the current API level and includes DalamudPackager automatically. Manifest properties in csproj replace the separate JSON manifest. If you need a different API level, change `<DalamudApiLevel>` accordingly.
 
-```json
-{
-  "Author": "",
-  "Name": "FFXIV Todo",
-  "Punchline": "Track non-MSQ content completion",
-  "Description": "Track unlocking and completion of all non-MSQ content across every expansion. Auto-detects progress from journal and achievements.",
-  "InternalName": "FfxivTodo",
-  "ApplicableVersion": "any",
-  "Tags": ["quests", "tracking", "completion", "todo"]
-}
-```
-
-- [ ] **Step 3: Create Plugin.cs skeleton**
+- [ ] **Step 2: Create Plugin.cs skeleton**
 
 ```csharp
 using Dalamud.Game.Command;
@@ -170,7 +159,7 @@ public sealed class Plugin : IDalamudPlugin
 }
 ```
 
-- [ ] **Step 4: Create Configuration.cs**
+- [ ] **Step 3: Create Configuration.cs**
 
 ```csharp
 using Dalamud.Configuration;
@@ -193,12 +182,12 @@ public sealed class Configuration : IPluginConfiguration
 }
 ```
 
-- [ ] **Step 5: Build to verify project compiles**
+- [ ] **Step 4: Build to verify project compiles**
 
 Run: `dotnet build FfxivTodo/FfxivTodo.csproj`
 Expected: Build succeeds (may need Dalamud SDK installed; ignore dependency warnings for now)
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add FfxivTodo/
