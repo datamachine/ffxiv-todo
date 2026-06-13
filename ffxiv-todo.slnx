@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="DataBuilder.Tests/DataBuilder.Tests.csproj" />
+  <Project Path="DataBuilder/DataBuilder.csproj" />
+  <Project Path="FfxivTodo/FfxivTodo.csproj">
+    <Platform Project="x64" />
+  </Project>
+</Solution>
