@@ -1,3 +1,4 @@
+using System.Linq;
 using DataBuilder.Scrapers;
 using HtmlAgilityPack;
 using Xunit;
@@ -44,5 +45,29 @@ public class WikiCategoryScraperTests
         Assert.Equal("HW", items[0].Expansion);
         Assert.Equal("Honor Lost", items[1].Name);
         Assert.Equal("Power Struggles", items[2].Name);
+    }
+
+    [Fact]
+    public void ParseRaidsPage_ExtractsNormalAndAllianceRaids()
+    {
+        var doc = new HtmlDocument();
+        doc.Load("TestData/raids_page.html");
+        var scraper = new WikiCategoryScraper(null!);
+
+        var items = scraper.ParseRaidsPage(doc.DocumentNode);
+
+        Assert.Equal(3, items.Count);
+
+        var bahamut = items.First(i => i.Name == "The Binding Coil of Bahamut");
+        Assert.Equal("RaidSeries", bahamut.Category);
+        Assert.Equal("ARR", bahamut.Expansion);
+
+        var alexander = items.First(i => i.Name == "Alexander: Gordias");
+        Assert.Equal("RaidSeries", alexander.Category);
+        Assert.Equal("HW", alexander.Expansion);
+
+        var labyrinth = items.First(i => i.Name == "The Labyrinth of the Ancients");
+        Assert.Equal("AllianceRaid", labyrinth.Category);
+        Assert.Equal("ARR", labyrinth.Expansion);
     }
 }

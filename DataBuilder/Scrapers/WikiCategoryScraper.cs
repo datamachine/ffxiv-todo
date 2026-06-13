@@ -91,4 +91,74 @@ public sealed class WikiCategoryScraper
     {
         return ExpansionMap.TryGetValue(heading, out var value) ? value : null;
     }
+
+    public List<CategoryItem> ParseRaidsPage(HtmlNode contentNode)
+    {
+        var items = new List<CategoryItem>();
+        var currentSection = string.Empty;
+        var currentExpansion = string.Empty;
+
+        var headings = contentNode.SelectNodes(".//h2|.//h3");
+        if (headings == null) return items;
+
+        foreach (var heading in headings)
+        {
+            var span = heading.SelectSingleNode(".//span[@id]");
+            if (span == null) continue;
+            var sectionId = span.GetAttributeValue("id", "");
+
+            if (sectionId == "Normal_Raids") { currentSection = "RaidSeries"; continue; }
+            if (sectionId == "Alliance_Raids") { currentSection = "AllianceRaid"; continue; }
+            if (sectionId.StartsWith("Savage_Raids") || sectionId.StartsWith("Ultimate_Raids"))
+            { currentSection = string.Empty; continue; }
+            if (sectionId == "Chaotic_Alliance_Raids" || sectionId.StartsWith("Field_Operations"))
+            { currentSection = string.Empty; continue; }
+
+            var exp = ParseExpansionFromHeading(System.Text.RegularExpressions.Regex.Replace(sectionId.Replace("_", " "), @" \d+$", ""));
+            if (exp != null)
+            {
+                currentExpansion = exp;
+            }
+            else if (string.IsNullOrEmpty(currentSection))
+            {
+                continue;
+            }
+
+            var current = heading;
+            HtmlNode? table = null;
+            while ((current = current.NextSibling) != null)
+            {
+                if (current.Name == "table") { table = current; break; }
+                if (current.Name == "h2" || current.Name == "h3") break;
+            }
+
+            if (table == null) continue;
+
+            var rows = table.SelectNodes(".//tr");
+            if (rows == null) continue;
+
+            foreach (var row in rows.Skip(1))
+            {
+                var cells = row.SelectNodes(".//td");
+                if (cells == null || cells.Count < 1) continue;
+
+                var firstCol = cells[0];
+                var link = firstCol.SelectSingleNode(".//a");
+                var dutyName = link != null
+                    ? System.Web.HttpUtility.HtmlDecode(link.InnerText.Trim())
+                    : System.Web.HttpUtility.HtmlDecode(firstCol.InnerText.Trim());
+
+                if (string.IsNullOrWhiteSpace(dutyName)) continue;
+
+                items.Add(new CategoryItem
+                {
+                    Name = dutyName,
+                    Category = currentSection,
+                    Expansion = currentExpansion
+                });
+            }
+        }
+
+        return items;
+    }
 }
