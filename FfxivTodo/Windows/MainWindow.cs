@@ -6,7 +6,7 @@ using System.Numerics;
 using Dalamud.Interface.Windowing;
 using FfxivTodo.Models;
 using FfxivTodo.Services;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 
 namespace FfxivTodo.Windows;
 
@@ -63,8 +63,7 @@ public sealed class MainWindow : Window, IDisposable
 
         if (ImGui.BeginMenu("View"))
         {
-            if (ImGui.MenuItem("Show Ignored", null, _showIgnored))
-                _showIgnored = !_showIgnored;
+            if (ImGui.MenuItem("Show Ignored", ref _showIgnored)) { }
             ImGui.EndMenu();
         }
 

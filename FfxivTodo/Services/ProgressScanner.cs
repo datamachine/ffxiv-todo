@@ -1,10 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using FfxivTodo.Models;
+using Lumina.Excel.Sheets;
 
 namespace FfxivTodo.Services;
 
-public sealed class ProgressScanner : System.IDisposable
+public sealed class ProgressScanner : IDisposable
 {
     private readonly ProgressStore _store;
     private Timer? _debounceTimer;
@@ -49,26 +51,39 @@ public sealed class ProgressScanner : System.IDisposable
         if (entry.IsManual)
             return;
 
-        if (item.QuestId.HasValue)
+        var hasQuestCheck = item.QuestId.HasValue;
+        var hasAchievementCheck = item.AchievementId.HasValue;
+
+        if (!hasQuestCheck && !hasAchievementCheck)
+            return;
+
+        if (hasQuestCheck)
         {
-            if (Plugin.QuestManager.IsQuestComplete(item.QuestId.Value))
+            if (QuestHelper.IsQuestComplete(item.QuestId!.Value))
                 entry.Status = ItemStatus.Completed;
             else
                 entry.Status = ItemStatus.NotStarted;
         }
 
-        if (item.AchievementId.HasValue)
+        if (hasAchievementCheck)
         {
-            if (Plugin.AchievementManager.IsComplete((int)item.AchievementId.Value))
+            if (IsAchievementComplete(item.AchievementId!.Value))
                 entry.Status = ItemStatus.Completed;
             else
                 entry.Status = ItemStatus.NotStarted;
         }
+    }
 
-        if (item.QuestId.HasValue || item.AchievementId.HasValue)
-        {
-            entry.IsManual = false;
-        }
+    private static bool IsAchievementComplete(uint achievementId)
+    {
+        if (!Plugin.UnlockState.IsAchievementListLoaded)
+            return false;
+        var sheet = Plugin.DataManager.GameData.GetExcelSheet<Achievement>();
+        if (sheet == null)
+            return false;
+        if (!sheet.TryGetRow(achievementId, out var row))
+            return false;
+        return Plugin.UnlockState.IsAchievementComplete(row);
     }
 
     public void Dispose()

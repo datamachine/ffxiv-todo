@@ -1,4 +1,4 @@
-<Project Sdk="Dalamud.NET.Sdk">
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -16,7 +16,8 @@
     <Description>Track unlocking and completion of all non-MSQ content across every expansion. Auto-detects progress from journal and achievements.</Description>
     <ApplicableVersion>any</ApplicableVersion>
     <Tags>quests;tracking;completion;todo</Tags>
-    <DalamudApiLevel>14</DalamudApiLevel>
+    <Author>ffxiv-todo</Author>
+    <DalamudApiLevel>15</DalamudApiLevel>
   </PropertyGroup>
 
   <ItemGroup>

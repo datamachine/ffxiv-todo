@@ -1,6 +1,10 @@
+using Dalamud.Game.ClientState;
 using Dalamud.Game.Command;
+using Dalamud.Game.Gui;
+using Dalamud.Game.UnlockState;
 using Dalamud.IoC;
 using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
 using Dalamud.Interface.Windowing;
 using FfxivTodo.Services;
 using FfxivTodo.Windows;
@@ -11,12 +15,13 @@ public sealed class Plugin : IDalamudPlugin
 {
     public string Name => "FFXIV Todo";
 
-    [PluginService] internal static DalamudPluginInterface PluginInterface { get; private set; } = null!;
-    [PluginService] internal static CommandManager CommandManager { get; private set; } = null!;
+    [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
+    [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
-    [PluginService] internal static IQuestManager QuestManager { get; private set; } = null!;
-    [PluginService] internal static IAchievementManager AchievementManager { get; private set; } = null!;
+    [PluginService] internal static IUnlockState UnlockState { get; private set; } = null!;
+    [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
+    [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
     public Configuration Configuration { get; init; }
 
@@ -31,6 +36,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin()
     {
+        QuestHelper.Initialize();
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
         _mapFlagHelper = new MapFlagHelper();
@@ -57,7 +63,6 @@ public sealed class Plugin : IDalamudPlugin
 
         PluginInterface.UiBuilder.Draw += DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
-        PluginInterface.UiBuilder.SaveConfig += OnSaveConfig;
         ClientState.Login += OnLogin;
         ClientState.TerritoryChanged += OnTerritoryChanged;
     }
@@ -67,7 +72,6 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler("/todo");
         PluginInterface.UiBuilder.Draw -= DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;
-        PluginInterface.UiBuilder.SaveConfig -= OnSaveConfig;
         ClientState.Login -= OnLogin;
         ClientState.TerritoryChanged -= OnTerritoryChanged;
         _progressScanner.Dispose();
@@ -89,15 +93,9 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawConfigUI() => _mainWindow.IsOpen = true;
 
-    private void OnSaveConfig()
-    {
-        PluginInterface.SavePluginConfig(Configuration);
-        _progressScanner.SetDebounce(Configuration.ScanDebounceMs);
-    }
-
     private void OnLogin() => OnRefresh();
 
-    private void OnTerritoryChanged(ushort territoryId) => _progressScanner.ScanZone(_contentManager.Items);
+    private void OnTerritoryChanged(uint territoryId) => _progressScanner.ScanZone(_contentManager.Items);
 
     private void OnRefresh()
     {
