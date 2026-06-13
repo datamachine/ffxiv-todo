@@ -354,6 +354,7 @@ namespace FfxivTodo.Services;
 public sealed class ContentManager
 {
     public IReadOnlyList<ContentItem> Items { get; private set; } = [];
+    public int DataVersion { get; private set; }
 
     private readonly Dictionary<uint, ContentItem> _itemMap = new();
     private readonly Dictionary<uint, ProgressEntry> _progress = new();
@@ -369,6 +370,7 @@ public sealed class ContentManager
         var json = reader.ReadToEnd();
         var data = JsonSerializer.Deserialize<ContentDb>(json);
         Items = data?.Items ?? [];
+        DataVersion = data?.Version ?? 0;
 
         _itemMap.Clear();
         foreach (var item in Items)
@@ -430,8 +432,9 @@ public sealed class ContentManager
     private sealed class ContentDb
     {
         public int Version { get; set; }
-        public ContentItem[] Items { get; set; } = [];
-    }
+    public ContentItem[] Items { get; set; } = [];
+    public int Version { get; set; }
+}
 }
 ```
 
@@ -718,6 +721,21 @@ public sealed class MainWindow : Window, IDisposable
 
         if (ImGui.MenuItem("Refresh"))
             _progressScanner.ScanAll(_contentManager.Items);
+
+        if (ImGui.BeginMenu("Help"))
+        {
+            if (ImGui.MenuItem("About"))
+                ImGui.OpenPopup("About");
+            ImGui.EndMenu();
+        }
+
+        if (ImGui.BeginPopup("About"))
+        {
+            ImGui.Text("FFXIV Todo Plugin");
+            ImGui.Text("Tracks non-MSQ content completion across all expansions.");
+            ImGui.Text($"Data Version: {_contentManager.DataVersion}");
+            ImGui.EndPopup();
+        }
 
         ImGui.EndMenuBar();
     }
@@ -1082,6 +1100,15 @@ public sealed class OverlayWindow : Window, IDisposable
 
         Position = config.OverlayPosition;
 
+        if (config.OverlayLocked)
+        {
+            Flags |= ImGuiWindowFlags.NoMove;
+        }
+        else
+        {
+            Flags &= ~ImGuiWindowFlags.NoMove;
+        }
+
         var alpha = config.OverlayOpacity / 100f;
         ImGui.PushStyleVar(ImGuiStyleVar.Alpha, alpha);
 
@@ -1134,8 +1161,11 @@ public sealed class OverlayWindow : Window, IDisposable
 
             if (ImGui.BeginPopupContextItem($"overlay_ctx_{item.Id}"))
             {
+                var canFlag = item.LocationTerritoryId.HasValue && item.LocationTerritoryId != 0;
+                if (!canFlag) ImGui.BeginDisabled();
                 if (ImGui.MenuItem("Flag on Map"))
                     _mapFlagHelper.PlaceFlag(item);
+                if (!canFlag) ImGui.EndDisabled();
                 if (ImGui.MenuItem("Untrack"))
                 {
                     _progressStore.SetTracked(item.Id, false);
@@ -1499,6 +1529,20 @@ git commit -m "feat: wire Plugin integration — MapFlagHelper, data loading, al
       "questId": 67903,
       "achievementId": null,
       "wikiUrl": "https://ffxiv.consolegameswiki.com/wiki/Custom_Deliveries"
+    },
+    {
+      "id": 9,
+      "name": "Role Quest - The Lost World",
+      "level": 70,
+      "expansion": "ShB",
+      "category": "RoleQuest",
+      "prerequisiteIds": [],
+      "locationTerritoryId": 491,
+      "locationMapX": 11.5,
+      "locationMapY": 10.2,
+      "questId": 69263,
+      "achievementId": null,
+      "wikiUrl": "https://ffxiv.consolegameswiki.com/wiki/Role_Quests"
     }
   ]
 }
