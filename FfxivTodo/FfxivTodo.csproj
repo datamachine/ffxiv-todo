@@ -1,23 +1,26 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Dalamud.NET.Sdk">
+
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+    <Name>FFXIV Todo</Name>
+    <InternalName>FfxivTodo</InternalName>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <Punchline>Track non-MSQ content completion</Punchline>
+    <Description>Track unlocking and completion of all non-MSQ content across every expansion. Auto-detects progress from journal and achievements.</Description>
+    <ApplicableVersion>any</ApplicableVersion>
+    <Tags>quests;tracking;completion;todo</Tags>
+    <DalamudApiLevel>14</DalamudApiLevel>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="DalamudPackager" Version="*" PrivateAssets="all" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="$(AppData)\XIVLauncher\addon\Hooks\dev\Dalamud\Dalamud.csproj" Private="False" />
-  </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Data\content.json" />
   </ItemGroup>
+
 </Project>

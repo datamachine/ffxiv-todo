@@ -1,9 +1,0 @@
-{
-  "Author": "",
-  "Name": "FFXIV Todo",
-  "Punchline": "Track non-MSQ content completion",
-  "Description": "Track unlocking and completion of all non-MSQ content across every expansion. Auto-detects progress from journal and achievements.",
-  "InternalName": "FfxivTodo",
-  "ApplicableVersion": "any",
-  "Tags": ["quests", "tracking", "completion", "todo"]
-}
