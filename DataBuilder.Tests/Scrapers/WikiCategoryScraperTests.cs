@@ -1,4 +1,9 @@
+using System;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using DataBuilder.Scrapers;
 using HtmlAgilityPack;
 using Xunit;
@@ -69,5 +74,75 @@ public class WikiCategoryScraperTests
         var labyrinth = items.First(i => i.Name == "The Labyrinth of the Ancients");
         Assert.Equal("AllianceRaid", labyrinth.Category);
         Assert.Equal("ARR", labyrinth.Expansion);
+    }
+
+    [Fact]
+    public void ParseAlliedSocietyPage_ExtractsUnlockQuests()
+    {
+        var doc = new HtmlDocument();
+        doc.Load("TestData/allied_society_page.html");
+        var scraper = new WikiCategoryScraper(null!);
+
+        var items = scraper.ParseAlliedSocietyPage(doc.DocumentNode);
+
+        Assert.Equal(3, items.Count);
+        Assert.Equal("Peace for Thanalan", items[0].Name);
+        Assert.Equal("BeastTribe", items[0].Category);
+        Assert.Equal("ARR", items[0].Expansion);
+        Assert.Equal("Seeking Solace", items[1].Name);
+        Assert.Equal("ARR", items[1].Expansion);
+        Assert.Equal("Three Beaks to the Wind", items[2].Name);
+        Assert.Equal("HW", items[2].Expansion);
+    }
+
+    [Fact]
+    public async Task ScrapeAllAsync_CombinesAllCategories()
+    {
+        var handler = new MockHttpHandler(req =>
+        {
+            var path = req.RequestUri?.AbsolutePath;
+            if (path?.Contains("Job_Quests") == true)
+                return File.ReadAllText("TestData/job_quests_paladin.html");
+            if (path?.Contains("Raids") == true)
+                return File.ReadAllText("TestData/raids_page.html");
+            if (path?.Contains("Allied_Society") == true)
+                return File.ReadAllText("TestData/allied_society_page.html");
+            if (path?.Contains("Feature_Quests") == true)
+                return File.ReadAllText("TestData/feature_quests_dungeons.html");
+            return "<html><body></body></html>";
+        });
+
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://ffxiv.consolegameswiki.com") };
+        var scraper = new WikiCategoryScraper(http);
+
+        var items = await scraper.ScrapeAllAsync();
+
+        Assert.True(items.Count > 0);
+        Assert.Contains(items, i => i.Category == "JobQuest");
+        Assert.Contains(items, i => i.Category == "RaidSeries");
+        Assert.Contains(items, i => i.Category == "BeastTribe");
+        Assert.Contains(items, i => i.Category == "BlueUnlock");
+    }
+}
+
+internal class MockHttpHandler : DelegatingHandler
+{
+    private readonly Func<HttpRequestMessage, string> _handler;
+
+    public MockHttpHandler(Func<HttpRequestMessage, string> handler)
+    {
+        _handler = handler;
+        InnerHandler = new HttpClientHandler();
+    }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var content = _handler(request);
+        var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent(content, System.Text.Encoding.UTF8, "text/html")
+        };
+        return Task.FromResult(response);
     }
 }
