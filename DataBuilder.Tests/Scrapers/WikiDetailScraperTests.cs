@@ -1,4 +1,10 @@
+using System;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using DataBuilder.Models;
 using DataBuilder.Scrapers;
 using HtmlAgilityPack;
 using Xunit;
@@ -59,14 +65,26 @@ public class WikiDetailScraperTests
     }
 
     [Fact]
-    public void ParseInfobox_SetsWikiUrl()
+    public async Task ScrapeDetailsAsync_EnrichesCategoryItems()
     {
-        var doc = new HtmlDocument();
-        doc.Load("TestData/primal_awakening.html");
-        var scraper = new WikiDetailScraper();
+        var handler = new MockHttpHandler(req =>
+            File.ReadAllText("TestData/primal_awakening.html"));
 
-        var result = scraper.ParseDetailPage(doc.DocumentNode, "https://ffxiv.consolegameswiki.com/wiki/Primal_Awakening");
+        var http = new HttpClient(handler)
+            { BaseAddress = new Uri("https://ffxiv.consolegameswiki.com") };
+        var scraper = new WikiDetailScraper(http);
 
-        Assert.Equal("https://ffxiv.consolegameswiki.com/wiki/Primal_Awakening", result.WikiUrl);
+        var categoryItems = new List<CategoryItem>
+        {
+            new() { Name = "Primal Awakening", Category = "RaidSeries", Expansion = "ARR" }
+        };
+
+        var results = await scraper.ScrapeDetailsAsync(categoryItems);
+
+        Assert.Single(results);
+        Assert.Equal((uint)50, results[0].Level);
+        Assert.Equal("ARR", results[0].Expansion);
+        Assert.Equal("RaidSeries", results[0].Category);
+        Assert.Equal("https://ffxiv.consolegameswiki.com/wiki/Primal_Awakening", results[0].WikiUrl);
     }
 }

@@ -9,6 +9,7 @@ namespace DataBuilder.Scrapers;
 
 public sealed class WikiDetailScraper
 {
+    private const string WikiBase = "https://ffxiv.consolegameswiki.com";
     private static readonly Regex CoordRegex = new(
         @"\((?:X|x):\s*([\d.]+),\s*(?:Y|y):\s*([\d.]+)\)",
         RegexOptions.Compiled);
@@ -20,6 +21,48 @@ public sealed class WikiDetailScraper
     public WikiDetailScraper(HttpClient http)
     {
         _http = http;
+    }
+
+    public async Task<List<DetailItem>> ScrapeDetailsAsync(List<CategoryItem> categoryItems)
+    {
+        if (_http == null) throw new InvalidOperationException("HttpClient not configured");
+
+        var results = new List<DetailItem>();
+
+        foreach (var catItem in categoryItems)
+        {
+            var slug = System.Web.HttpUtility.UrlEncode(catItem.Name.Replace(' ', '_'));
+            var url = $"{WikiBase}/wiki/{slug}";
+
+            try
+            {
+                var html = await _http.GetStringAsync(url);
+                var doc = new HtmlDocument();
+                doc.LoadHtml(html);
+
+                var detail = ParseDetailPage(doc.DocumentNode, url);
+                detail.Name = catItem.Name;
+                detail.Category = catItem.Category;
+                detail.Expansion = catItem.Expansion;
+
+                results.Add(detail);
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.Error.WriteLine($"WARN: Failed to fetch {url}: {ex.Message}");
+                results.Add(new DetailItem
+                {
+                    Name = catItem.Name,
+                    Category = catItem.Category,
+                    Expansion = catItem.Expansion,
+                    WikiUrl = url
+                });
+            }
+
+            await Task.Delay(1000);
+        }
+
+        return results;
     }
 
     public DetailItem ParseDetailPage(HtmlNode contentNode, string wikiUrl)
