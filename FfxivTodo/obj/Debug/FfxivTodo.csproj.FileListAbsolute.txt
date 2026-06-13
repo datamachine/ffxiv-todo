@@ -1,4 +1,0 @@
-/home/vcastellano/Projects/ffxiv-todo/FfxivTodo/obj/Debug/FfxivTodo.GeneratedMSBuildEditorConfig.editorconfig
-/home/vcastellano/Projects/ffxiv-todo/FfxivTodo/obj/Debug/FfxivTodo.AssemblyInfoInputs.cache
-/home/vcastellano/Projects/ffxiv-todo/FfxivTodo/obj/Debug/FfxivTodo.AssemblyInfo.cs
-/home/vcastellano/Projects/ffxiv-todo/FfxivTodo/obj/Debug/FfxivTodo.csproj.CoreCompileInputs.cache
