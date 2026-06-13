@@ -603,6 +603,8 @@ public sealed class ProgressScanner : System.IDisposable
         {
             if (Plugin.AchievementManager.IsComplete((int)item.AchievementId.Value))
                 entry.Status = ItemStatus.Completed;
+            else
+                entry.Status = ItemStatus.NotStarted;
         }
 
         if (item.QuestId.HasValue || item.AchievementId.HasValue)
