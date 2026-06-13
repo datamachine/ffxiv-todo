@@ -1,4 +1,5 @@
 using DataBuilder.Scrapers;
+using HtmlAgilityPack;
 using Xunit;
 
 namespace DataBuilder.Tests.Scrapers;
@@ -26,5 +27,22 @@ public class WikiCategoryScraperTests
     public void ParseExpansionFromHeading_CaseInsensitive()
     {
         Assert.Equal("ARR", WikiCategoryScraper.ParseExpansionFromHeading("a realm reborn"));
+    }
+
+    [Fact]
+    public void ParseJobQuestTable_ExtractsPaladinQuests_WithExpansionHW()
+    {
+        var doc = new HtmlDocument();
+        doc.Load("TestData/job_quests_paladin.html");
+        var scraper = new WikiCategoryScraper(null!);
+
+        var items = scraper.ParseJobQuestTable(doc.DocumentNode, "Heavensward");
+
+        Assert.Equal(3, items.Count);
+        Assert.Equal("Paladin's Pledge", items[0].Name);
+        Assert.Equal("JobQuest", items[0].Category);
+        Assert.Equal("HW", items[0].Expansion);
+        Assert.Equal("Honor Lost", items[1].Name);
+        Assert.Equal("Power Struggles", items[2].Name);
     }
 }
