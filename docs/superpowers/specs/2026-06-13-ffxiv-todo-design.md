@@ -72,7 +72,7 @@ Flat map of `ContentItem.Id → ProgressEntry`:
 ```json
 {
   "1000": { "status": "Completed", "isTracked": false, "isIgnored": false, "isManual": false },
-  "1001": { "status": "Started", "isTracked": true, "isIgnored": false, "isManual": false },
+  "1001": { "status": "InProgress", "isTracked": true, "isIgnored": false, "isManual": false },
   "1002": { "status": "NotStarted", "isTracked": false, "isIgnored": true, "isManual": true }
 }
 ```
@@ -81,7 +81,7 @@ Flat map of `ContentItem.Id → ProgressEntry`:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `Status` | enum | NotStarted, Started, InProgress, Completed |
+| `Status` | enum | NotStarted, InProgress, Completed |
 | `IsTracked` | bool | Promoted to overlay visibility |
 | `IsIgnored` | bool | Hidden from all views (unless "show ignored" is on) |
 | `IsManual` | bool | If true, auto-scanner skips this entry |
@@ -90,7 +90,7 @@ Flat map of `ContentItem.Id → ProgressEntry`:
 
 - **Locked**: any prerequisite has status != Completed
 - **Available**: all prerequisites completed, status = NotStarted
-- **Started/InProgress/Completed**: direct from ProgressStore
+- **InProgress/Completed**: direct from ProgressStore
 - **Hidden**: IsIgnored = true
 
 ## Architecture
