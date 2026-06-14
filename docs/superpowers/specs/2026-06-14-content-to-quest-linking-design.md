@@ -50,7 +50,7 @@ Relevant entries gain an `unlockQuestIds` field:
 
 ### Quest Chain Override File
 
-Checked into the repo at `Data/quest_chain_overrides.json`:
+Checked into the repo at `DataBuilder/Data/quest_chain_overrides.json`:
 
 ```json
 [
@@ -99,7 +99,8 @@ When a quest from the chain is not already in the content list, create a `Conten
 - `Expansion`: mapped from Quest CSV expansion value
 - `Category`: `BlueUnlock`
 - `QuestId`: quest ID from Quest CSV
-- `LocationTerritoryId`/`Name`/`X`/`Y`: resolved from Quest CSV issuer location fields
+- `LocationTerritoryId`/`Name`: resolved from Quest CSV `IssuerLocation` and `PlaceName` fields
+- `LocationMapX`/`LocationMapY`: left null (Quest CSV has no coordinate data; ENPC position resolution is out of scope)
 - `PrerequisiteIds`: mapped from `PreviousQuest0-2` in Quest CSV
 - `UnlockQuestIds`: empty (the quest itself IS the unlock)
 
@@ -129,7 +130,7 @@ Rendered as indented rows under the parent content item:
 
 ### Auto-Completion
 
-When the user marks the last quest in a chain as complete, the parent content item is automatically marked complete. This happens in `ProgressStore.MarkCompleted` — after updating the quest's progress, it checks if the quest is the last entry in its parent content's `UnlockQuestIds`. If so, it marks the parent complete too.
+When the user marks the last quest in a chain as complete, the parent content item is automatically marked complete. In `ProgressStore.SetStatus`, after updating the quest's progress, if the quest is the last entry in any parent content's `UnlockQuestIds` and the new status is `Completed`, the parent is set to `Completed` as well.
 
 Auto-completion propagates only quest → content, never reverse.
 
@@ -137,16 +138,17 @@ Auto-completion propagates only quest → content, never reverse.
 
 - The quest chain group respects active filters. If the parent content is hidden by a filter, the quest group is hidden too.
 - Individual quests in the chain inherit the parent content's category for filtering purposes (a quest in Eden's Gate's chain filters as `RaidSeries`).
+- Implementation: at render time, look up the parent content item for each chain quest via a reverse index built from `UnlockQuestIds`.
 
 ## Progress Tracking
 
 ### ProgressStore Changes
 
-`MarkCompleted(uint contentId)`:
+Extend `SetStatus` to detect chain completion:
 
-1. Update the item's own progress to `Completed`.
-2. Check if this item appears as the last entry in any other content item's `UnlockQuestIds`.
-3. If so, mark that parent content item as complete.
+1. Update the item's own progress to the given status.
+2. If the new status is `Completed`, check if this item appears as the last entry in any other content item's `UnlockQuestIds`.
+3. If so, call `SetStatus` on the parent content item with `Completed`.
 
 No new storage fields. The `UnlockQuestIds` relationship is read from `content.json` at runtime.
 
@@ -167,7 +169,7 @@ No new storage fields. The `UnlockQuestIds` relationship is read from `content.j
 |------|--------|
 | `FfxivTodo/Models/ContentItem.cs` | Add `UnlockQuestIds` field |
 | `FfxivTodo/Models/PipelineModels.cs` | Add `UnlockQuestIds` to `DetailItem` and `FormattedItem` |
-| `FfxivTodo/ProgressStore.cs` | Add chain-aware auto-completion in `MarkCompleted` |
+| `FfxivTodo/Services/ProgressStore.cs` | Extend `SetStatus` with chain-aware auto-completion |</｜DSML｜parameter>, <｜DSML｜parameter name=
 | `FfxivTodo/Windows/MainWindow.cs` | Add quest chain group rendering, expand toggle, next-quest indicator |
 | `DataBuilder/Data/quest_chain_overrides.json` | New manual override file |
 | `DataBuilder/Scrapers/UnlockQuestResolver.cs` | New pipeline stage |
