@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using DataBuilder.Formatters;
 using DataBuilder.Models;
+using DataBuilder.Data;
 using DataBuilder.Scrapers;
 
 namespace DataBuilder;
@@ -21,7 +22,8 @@ class Program
     static async Task<int> Main(string[] args)
     {
         var fromStage = "scratch";
-        var outputPath = "../FfxivTodo/Data/content.json";
+        var outputPath = "FfxivTodo/Data/content.json";
+        var skipIdResolution = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -29,6 +31,8 @@ class Program
                 fromStage = args[++i];
             if (args[i] == "--output" && i + 1 < args.Length)
                 outputPath = args[++i];
+            if (args[i] == "--skip-id-resolution")
+                skipIdResolution = true;
         }
 
         var cacheDir = "Cache";
@@ -62,15 +66,17 @@ class Program
                            ?? new List<CategoryItem>();
         }
 
-        // Stage 2: Detail scrape
+        // Stage 2: CSV enrichment
         if (fromStage is "scratch" or "categories")
         {
-            Console.WriteLine("Stage 2: Scraping detail pages...");
-            var detailScraper = new WikiDetailScraper(http);
-            detailItems = await detailScraper.ScrapeDetailsAsync(categoryItems);
+            Console.WriteLine("Stage 2: Enriching from CSV data...");
+            var csvProvider = new CsvDataProvider(http, Path.Combine(cacheDir, "csv"));
+            await csvProvider.InitializeAsync();
+            var enricher = new CsvEnricher(csvProvider, cacheDir);
+            detailItems = enricher.Enrich(categoryItems);
             await File.WriteAllTextAsync(detailFile, JsonSerializer.Serialize(
                 new DetailItemsFile { Items = detailItems }, JsonOpts));
-            Console.WriteLine($"  Scraped {detailItems.Count} detail pages.");
+            Console.WriteLine($"  Produced {detailItems.Count} detail items.");
         }
         else
         {
@@ -80,17 +86,82 @@ class Program
                          ?? new List<DetailItem>();
         }
 
-        // Stage 3: ID resolution
-        if (fromStage is "scratch" or "categories" or "details")
-        {
-            Console.WriteLine("Stage 3: Resolving IDs via EDB + XIVAPI...");
-            var resolver = new XivApiResolver(http);
-            foreach (var item in detailItems)
-                await resolver.ResolveAsync(item);
+        var detailFileWritten = fromStage is "scratch" or "categories";
 
-            await File.WriteAllTextAsync(resolvedFile, JsonSerializer.Serialize(
-                new DetailItemsFile { Items = detailItems }, JsonOpts));
-            Console.WriteLine("  IDs resolved.");
+        // Stage 2.5: Resolve unlock quest chains
+        if (fromStage is "scratch" or "categories")
+        {
+            Console.WriteLine("Stage 2.5: Resolving unlock quest chains...");
+            var overridePath = Path.Combine("..", "DataBuilder", "Data", "quest_chain_overrides.json");
+            if (!File.Exists(overridePath))
+            {
+                overridePath = Path.Combine("DataBuilder", "Data", "quest_chain_overrides.json");
+                if (!File.Exists(overridePath))
+                    Console.Error.WriteLine("  WARN: quest_chain_overrides.json not found");
+            }
+
+            var csvProvider = new CsvDataProvider(http, Path.Combine(cacheDir, "csv"));
+            await csvProvider.InitializeAsync();
+
+            var resolver = new UnlockQuestResolver(overridePath);
+
+            await resolver.ResolveWithWikiAsync(detailItems, csvProvider, http);
+
+            var newQuestItems = resolver.ResolveWithChainCreation(detailItems, csvProvider);
+            Console.WriteLine($"  Created {newQuestItems.Count} quest chain entries.");
+
+            if (detailFileWritten)
+            {
+                await File.WriteAllTextAsync(detailFile, JsonSerializer.Serialize(
+                    new DetailItemsFile { Items = detailItems }, JsonOpts));
+            }
+        }
+
+        // Stage 3: Wiki detail scrape for location data on all items, plus level for unmatched items
+        if (fromStage is "scratch" or "categories" or "details" or "wiki-detail")
+        {
+            var catItems = detailItems
+                .Select(i => new CategoryItem
+                {
+                    Name = i.Name,
+                    Category = i.Category,
+                    Expansion = i.Expansion
+                })
+                .ToList();
+
+            Console.WriteLine($"Stage 3: Scraping wiki details for {catItems.Count} items...");
+            var detailScraper = new WikiDetailScraper(http);
+            var scrapedItems = await detailScraper.ScrapeDetailsAsync(catItems);
+            Console.WriteLine($"  Scraped {scrapedItems.Count} items.");
+
+            var scrapedByName = scrapedItems.ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var item in detailItems)
+            {
+                if (!scrapedByName.TryGetValue(item.Name, out var scraped))
+                    continue;
+
+                // Merge level if missing
+                if ((item.Level == null || item.Level == 0) && scraped.Level > 0)
+                    item.Level = scraped.Level;
+
+                // Merge location data — wiki data is more reliable than CSV PlaceName IDs
+                if (scraped.LocationTerritoryName != null)
+                    item.LocationTerritoryName = scraped.LocationTerritoryName;
+                if (scraped.LocationMapX != null)
+                    item.LocationMapX = scraped.LocationMapX;
+                if (scraped.LocationMapY != null)
+                    item.LocationMapY = scraped.LocationMapY;
+
+                // Clear the wrong PlaceName-based territory ID; runtime resolves from name
+                item.LocationTerritoryId = null;
+            }
+
+            if (detailFileWritten)
+            {
+                await File.WriteAllTextAsync(resolvedFile, JsonSerializer.Serialize(
+                    new DetailItemsFile { Items = detailItems }, JsonOpts));
+            }
         }
         else
         {
