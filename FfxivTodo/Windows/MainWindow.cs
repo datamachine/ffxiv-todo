@@ -295,9 +295,20 @@ public sealed class MainWindow : Window, IDisposable
             if (!MainWindowFilterLogic.MatchesState(displayState, _selectedStates))
                 continue;
 
-            if (!string.IsNullOrEmpty(_searchText) &&
-                !item.Name.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
-                continue;
+            if (!string.IsNullOrEmpty(_searchText))
+            {
+                var matchesName = item.Name.Contains(_searchText, StringComparison.OrdinalIgnoreCase);
+                var matchesQuest = false;
+                if (!matchesName)
+                {
+                    var quests = _contentManager.GetUnlockQuests(item.Id);
+                    matchesQuest = quests.Any(q =>
+                        q.Name.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (!matchesName && !matchesQuest)
+                    continue;
+            }
 
             yield return item;
         }
