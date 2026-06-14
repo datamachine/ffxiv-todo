@@ -134,7 +134,9 @@ class Program
             var scrapedItems = await detailScraper.ScrapeDetailsAsync(catItems);
             Console.WriteLine($"  Scraped {scrapedItems.Count} items.");
 
-            var scrapedByName = scrapedItems.ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
+            var scrapedByName = scrapedItems
+                .GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
             foreach (var item in detailItems)
             {

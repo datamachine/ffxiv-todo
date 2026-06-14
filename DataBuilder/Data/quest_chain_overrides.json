@@ -1,3 +1,20 @@
 {
-  "overrides": []
+  "overrides": [
+    { "contentName": "The Binding Coil of Bahamut", "questIds": [66695] },
+    { "contentName": "The Second Coil of Bahamut", "questIds": [66849] },
+    { "contentName": "The Final Coil of Bahamut", "questIds": [65579] },
+    { "contentName": "Alexander: Gordias", "questIds": [67626] },
+    { "contentName": "Alexander: Midas", "questIds": [67785] },
+    { "contentName": "Alexander: The Creator", "questIds": [67871] },
+    { "contentName": "Omega: Deltascape", "questIds": [68464] },
+    { "contentName": "Eden\u0027s Gate", "questIds": [68791] },
+    { "contentName": "Pand\u00E6monium: Asphodelos", "questIds": [70011] },
+    { "contentName": "Pand\u00E6monium: Abyssos", "questIds": [70171] },
+    { "contentName": "Syrcus Tower", "questIds": [67010] },
+    { "contentName": "The Labyrinth of the Ancients", "questIds": [67245] },
+    { "contentName": "The Void Ark", "questIds": [67741] },
+    { "contentName": "The Weeping City of Mhach", "questIds": [67821] },
+    { "contentName": "Dun Scaith", "questIds": [67909] },
+    { "contentName": "The Royal City of Rabanastre", "questIds": [68539] }
+  ]
 }
