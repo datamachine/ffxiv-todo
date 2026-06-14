@@ -77,6 +77,20 @@ public sealed class MainWindowFilterLogicTests
     }
 
     [Fact]
+    public void CombinedFilters_RequireAndAcrossGroups()
+    {
+        var expansions = new HashSet<Expansion> { Expansion.EW, Expansion.DT };
+        var categories = new HashSet<ContentCategory> { ContentCategory.BlueUnlock };
+        var states = new HashSet<FilterState> { FilterState.Locked };
+
+        Assert.True(MainWindowFilterLogic.MatchesExpansion(Expansion.EW, expansions));
+        Assert.True(MainWindowFilterLogic.MatchesCategory(ContentCategory.BlueUnlock, categories));
+        Assert.True(MainWindowFilterLogic.MatchesState(FilterState.Locked, states));
+
+        Assert.False(MainWindowFilterLogic.MatchesCategory(ContentCategory.JobQuest, categories));
+    }
+
+    [Fact]
     public void GetSummary_WhenThreeSelections_ReturnsCountSummary()
     {
         var selected = new HashSet<ContentCategory>
