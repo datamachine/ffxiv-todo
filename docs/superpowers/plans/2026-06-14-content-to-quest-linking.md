@@ -771,7 +771,7 @@ public List<DetailItem> ResolveWithChainCreation(List<DetailItem> items, CsvData
                 {
                     if (pqId > 0)
                     {
-                        var pqName = csv?.ResolveQuestName(pqId);
+                        var pqName = csv?.LookupQuestById(pqId)?.Name;
                         if (pqName != null)
                             newItem.PrerequisiteNames.Add(pqName);
                     }
@@ -1331,12 +1331,11 @@ if (item.UnlockQuestIds.Length > 0)
     }
 
     var isExpanded = _expandedChains.Contains(item.Id);
-    if (ImGui.TreeNodeEx($"##chain_{item.Id}", isExpanded ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None))
+    if (isExpanded)
+        ImGui.SetNextItemOpen(true);
+    if (ImGui.TreeNodeEx($"##chain_{item.Id}", ImGuiTreeNodeFlags.None))
     {
-        if (isExpanded)
-            _expandedChains.Remove(item.Id);
-        else
-            _expandedChains.Add(item.Id);
+        _expandedChains.Add(item.Id);
 
         foreach (var quest in quests)
         {
@@ -1358,6 +1357,10 @@ if (item.UnlockQuestIds.Length > 0)
         }
 
         ImGui.TreePop();
+    }
+    else
+    {
+        _expandedChains.Remove(item.Id);
     }
 }
 ```
