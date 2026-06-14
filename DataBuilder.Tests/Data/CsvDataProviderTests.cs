@@ -156,6 +156,26 @@ public sealed class CsvDataProviderTests
         Assert.Equal(66695, row.Id);
     }
 
+    [Fact]
+    public async Task LookupQuestById_ExistingId_ReturnsRow()
+    {
+        var provider = await CreateProviderAsync();
+        var quest = provider.LookupQuest("Hallo Halatali");
+        Assert.NotNull(quest);
+
+        var byId = provider.LookupQuestById(quest.Id);
+        Assert.NotNull(byId);
+        Assert.Equal(quest.Name, byId.Name);
+    }
+
+    [Fact]
+    public async Task LookupQuestById_NonexistentId_ReturnsNull()
+    {
+        var provider = await CreateProviderAsync();
+        var result = provider.LookupQuestById(999999);
+        Assert.Null(result);
+    }
+
     private static async Task<CsvDataProvider> CreateProviderAsync()
     {
         var http = new HttpClient();

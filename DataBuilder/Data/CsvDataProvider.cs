@@ -21,6 +21,7 @@ public sealed class CsvDataProvider
 
     private readonly Dictionary<string, QuestCsvRow> _questByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, QuestCsvRow> _questById = new();
+    private readonly Dictionary<string, AchievementCsvRow> _achievementByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, string> _npcNames = new();
     private readonly Dictionary<int, string> _territoryNames = new();
     private readonly Dictionary<int, string> _placeNames = new();
@@ -51,6 +52,7 @@ public sealed class CsvDataProvider
 
             Directory.CreateDirectory(_csvCacheDir);
 
+            var requiredCsvFiles = new[] { "Quest.csv", "Achievement.csv", "ENpcResident.csv", "TerritoryType.csv", "PlaceName.csv" };
             var questPath = Path.Combine(_csvCacheDir, "Quest.csv");
             var isCached = File.Exists(questPath);
             var cacheAge = isCached
@@ -59,13 +61,17 @@ public sealed class CsvDataProvider
 
             if (!isCached || cacheAge > CacheMaxAge || forceRefresh)
             {
-                await DownloadCsvAsync("Quest.csv");
-                await DownloadCsvAsync("ENpcResident.csv");
-                await DownloadCsvAsync("TerritoryType.csv");
-                await DownloadCsvAsync("PlaceName.csv");
+                foreach (var file in requiredCsvFiles)
+                    await DownloadCsvAsync(file);
+            }
+            else if (requiredCsvFiles.Any(f => !File.Exists(Path.Combine(_csvCacheDir, f))))
+            {
+                foreach (var file in requiredCsvFiles.Where(f => !File.Exists(Path.Combine(_csvCacheDir, f))))
+                    await DownloadCsvAsync(file);
             }
 
             LoadQuests();
+            LoadAchievements();
             LoadNpcs();
             LoadTerritories();
             LoadPlaceNames();
@@ -89,6 +95,11 @@ public sealed class CsvDataProvider
             return row;
 
         return null;
+    }
+
+    public QuestCsvRow? LookupQuestById(int questId)
+    {
+        return _questById.TryGetValue(questId, out var row) ? row : null;
     }
 
     public string? ResolveNpcName(int npcId)
@@ -177,6 +188,46 @@ public sealed class CsvDataProvider
         }
 
         Console.WriteLine($"  Loaded {_questByName.Count} quests from CSV.");
+    }
+
+    private void LoadAchievements()
+    {
+        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            HasHeaderRecord = true,
+            MissingFieldFound = null,
+            BadDataFound = null,
+        };
+
+        using var reader = new StreamReader(Path.Combine(_csvCacheDir, "Achievement.csv"));
+        using var csv = new CsvReader(reader, config);
+
+        csv.Read();
+        csv.ReadHeader();
+        var records = csv.GetRecords<AchievementCsvRow>();
+
+        foreach (var row in records)
+        {
+            if (row.Id == 0) continue;
+            var key = NormalizeName(row.Name);
+            if (!string.IsNullOrEmpty(key))
+                _achievementByName[key] = row;
+        }
+
+        Console.WriteLine($"  Loaded {_achievementByName.Count} achievements from CSV.");
+    }
+
+    public AchievementCsvRow? LookupAchievement(string name)
+    {
+        var normalized = NormalizeName(name);
+        if (_achievementByName.TryGetValue(normalized, out var row))
+            return row;
+
+        var noParen = RemoveParentheticals(normalized);
+        if (noParen != normalized && _achievementByName.TryGetValue(noParen, out row))
+            return row;
+
+        return null;
     }
 
     private void LoadNpcs()
