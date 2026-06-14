@@ -197,9 +197,9 @@ Quest chain building uses `QuestCsvRow.PreviousQuest0/1/2` to walk backward thro
 
 ### Plugin Tests
 
-- `ProgressStore.MarkCompleted` auto-completes parent when last quest in chain
-- `ProgressStore.MarkCompleted` does not auto-complete when quest is mid-chain
-- `ProgressStore.MarkCompleted` does not auto-complete when quest is not in any chain
+- `ProgressStore.SetStatus` auto-completes parent when last quest in chain
+- `ProgressStore.SetStatus` does not auto-complete when quest is mid-chain
+- `ProgressStore.SetStatus` does not auto-complete when quest is not in any chain
 
 ### Test Fixtures
 
