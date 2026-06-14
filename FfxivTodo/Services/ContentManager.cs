@@ -1,9 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text.Json;
 using FfxivTodo.Models;
+using Newtonsoft.Json;
 
 namespace FfxivTodo.Services;
 
@@ -14,6 +15,7 @@ public sealed class ContentManager
 
     private readonly Dictionary<uint, ContentItem> _itemMap = new();
     private readonly Dictionary<uint, ProgressEntry> _progress = new();
+    private Dictionary<uint, List<uint>> _questIdToParentIds = new();
 
     public void LoadContent()
     {
@@ -24,13 +26,37 @@ public sealed class ContentManager
 
         using var reader = new StreamReader(stream);
         var json = reader.ReadToEnd();
-        var data = JsonSerializer.Deserialize<ContentDb>(json);
-        Items = data?.Items ?? [];
-        DataVersion = data?.Version ?? 0;
+        Plugin.Log.Information($"Read content.json: {json.Length} bytes");
+        try
+        {
+            var data = JsonConvert.DeserializeObject<ContentDb>(json);
+            Plugin.Log.Information($"Deserialization result: data={(data != null ? "non-null" : "NULL")}, items={data?.Items?.Length ?? -1}");
+            Items = data?.Items ?? [];
+            DataVersion = data?.Version ?? 0;
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Error($"Failed to deserialize content.json: {ex.Message}");
+            Plugin.Log.Error($"Exception type: {ex.GetType().FullName}");
+            if (ex.InnerException != null)
+                Plugin.Log.Error($"Inner: {ex.InnerException.Message}");
+            Items = [];
+            DataVersion = 0;
+        }
 
         _itemMap.Clear();
         foreach (var item in Items)
             _itemMap[item.Id] = item;
+        BuildQuestToParentIndex();
+    }
+
+    public void LoadFromList(IReadOnlyList<ContentItem> items)
+    {
+        Items = items;
+        _itemMap.Clear();
+        foreach (var item in Items)
+            _itemMap[item.Id] = item;
+        BuildQuestToParentIndex();
     }
 
     public void SetProgress(Dictionary<uint, ProgressEntry> progress)
@@ -85,9 +111,60 @@ public sealed class ContentManager
             .ToList();
     }
 
-    private sealed class ContentDb
+    public IReadOnlyList<ContentItem> GetUnlockQuests(uint contentId)
     {
-        public int Version { get; set; }
-        public ContentItem[] Items { get; set; } = [];
+        if (!_itemMap.TryGetValue(contentId, out var item))
+            return [];
+
+        var quests = new List<ContentItem>();
+        foreach (var questId in item.UnlockQuestIds)
+        {
+            var quest = Items.FirstOrDefault(i => i.Id == questId || i.QuestId == questId);
+            if (quest != null)
+                quests.Add(quest);
+        }
+
+        return quests;
     }
+
+    public ContentItem? FindParentContent(uint itemId)
+    {
+        if (!_questIdToParentIds.TryGetValue(itemId, out var parentIds))
+            return null;
+
+        foreach (var parentId in parentIds)
+        {
+            if (_itemMap.TryGetValue(parentId, out var parent))
+                return parent;
+        }
+
+        return null;
+    }
+
+    private void BuildQuestToParentIndex()
+    {
+        _questIdToParentIds = new Dictionary<uint, List<uint>>();
+        foreach (var parent in Items)
+        {
+            foreach (var questId in parent.UnlockQuestIds)
+            {
+                var child = Items.FirstOrDefault(i => i.Id == questId || i.QuestId == questId);
+                if (child != null)
+                {
+                    if (!_questIdToParentIds.TryGetValue(child.Id, out var list))
+                    {
+                        list = new List<uint>();
+                        _questIdToParentIds[child.Id] = list;
+                    }
+                    list.Add(parent.Id);
+                }
+            }
+        }
+    }
+}
+
+public sealed class ContentDb
+{
+    public int Version { get; set; }
+    public ContentItem[] Items { get; set; } = [];
 }
