@@ -96,4 +96,19 @@ public sealed class UnlockQuestResolverTests
             File.Delete(tmpFile);
         }
     }
+
+    [Fact]
+    public void ExtractUnlockQuestNames_FindsQuestNameInHtml()
+    {
+        var html = File.ReadAllText(Path.Combine("TestData", "edens_gate.html"));
+        var questNames = UnlockQuestResolver.ExtractUnlockQuestNames(html);
+        Assert.Contains("In the Middle of Nowhere", questNames);
+    }
+
+    [Fact]
+    public void ExtractUnlockQuestNames_EmptyHtml_ReturnsEmpty()
+    {
+        var names = UnlockQuestResolver.ExtractUnlockQuestNames("<html></html>");
+        Assert.Empty(names);
+    }
 }
