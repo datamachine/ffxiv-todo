@@ -111,4 +111,73 @@ public sealed class UnlockQuestResolverTests
         var names = UnlockQuestResolver.ExtractUnlockQuestNames("<html></html>");
         Assert.Empty(names);
     }
+
+    [Fact]
+    public void ResolveWithChainCreation_WithOverride_CreatesMissingQuestEntries()
+    {
+        var overrides = new QuestChainOverridesFile
+        {
+            Overrides =
+            [
+                new() { ContentName = "Eden's Gate", QuestIds = [69163] }
+            ]
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tmpFile, JsonSerializer.Serialize(overrides));
+
+            var items = new List<DetailItem>
+            {
+                new() { Name = "Eden's Gate", Category = "RaidSeries", Expansion = "ShB" }
+            };
+
+            var resolver = new UnlockQuestResolver(tmpFile);
+            var newItems = resolver.ResolveWithChainCreation(items, csv: null);
+
+            Assert.Equal(2, items.Count);
+            Assert.Equal("Eden's Gate", items[0].Name);
+            Assert.Equal([69163u], items[0].UnlockQuestIds);
+            Assert.Equal("BlueUnlock", items[1].Category);
+            Assert.Equal(69163u, items[1].QuestId);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ResolveWithChainCreation_WithoutCsv_DoesNotWalkChain()
+    {
+        var overrides = new QuestChainOverridesFile
+        {
+            Overrides =
+            [
+                new() { ContentName = "Eden's Gate", QuestIds = [69163] }
+            ]
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tmpFile, JsonSerializer.Serialize(overrides));
+
+            var items = new List<DetailItem>
+            {
+                new() { Name = "Eden's Gate", Category = "RaidSeries", Expansion = "ShB" }
+            };
+
+            var resolver = new UnlockQuestResolver(tmpFile);
+            var newItems = resolver.ResolveWithChainCreation(items, csv: null);
+
+            Assert.Single(newItems);
+            Assert.Equal(69163u, newItems[0].QuestId);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
 }

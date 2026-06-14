@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using DataBuilder.Data;
 using DataBuilder.Models;
 
 namespace DataBuilder.Scrapers;
@@ -14,6 +15,8 @@ public sealed class UnlockQuestResolver
 {
     private readonly string _overrideFilePath;
     private Dictionary<string, List<uint>> _overridesByName = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly string[] ExpansionNames = ["ARR", "HW", "SB", "ShB", "EW", "DT"];
 
     private static readonly Regex[] UnlockQuestPatterns =
     [
@@ -40,6 +43,114 @@ public sealed class UnlockQuestResolver
 
             item.UnlockQuestIds = new List<uint>(questIds);
         }
+    }
+
+    public List<DetailItem> ResolveWithChainCreation(List<DetailItem> items, CsvDataProvider? csv)
+    {
+        Resolve(items);
+
+        var newItems = new List<DetailItem>();
+
+        var existingQuestIds = new HashSet<uint>();
+        foreach (var item in items)
+        {
+            if (item.QuestId.HasValue && item.QuestId.Value > 0)
+                existingQuestIds.Add(item.QuestId.Value);
+        }
+
+        foreach (var item in items.ToList())
+        {
+            if (item.UnlockQuestIds.Count == 0)
+                continue;
+
+            var fullChain = new List<uint>();
+            foreach (var terminalQuestId in item.UnlockQuestIds)
+            {
+                if (csv != null)
+                {
+                    var walked = WalkPrerequisiteChain(terminalQuestId, csv, existingQuestIds);
+                    fullChain.AddRange(walked);
+                }
+                else
+                {
+                    if (!existingQuestIds.Contains(terminalQuestId))
+                        fullChain.Add(terminalQuestId);
+                }
+            }
+
+            if (fullChain.Count > 0 && csv != null)
+            {
+                item.UnlockQuestIds = fullChain;
+            }
+
+            foreach (var questId in item.UnlockQuestIds)
+            {
+                if (existingQuestIds.Contains(questId))
+                    continue;
+
+                var questRow = csv?.LookupQuestById((int)questId);
+                var questName = questRow?.Name ?? $"Quest {questId}";
+
+                var newItem = new DetailItem
+                {
+                    Name = questName,
+                    Category = "BlueUnlock",
+                    Expansion = questRow != null && questRow.Expansion >= 0 && questRow.Expansion < ExpansionNames.Length
+                        ? ExpansionNames[questRow.Expansion]
+                        : item.Expansion,
+                    Level = questRow?.ClassJobLevel > 0 ? (uint?)questRow.ClassJobLevel : null,
+                    QuestId = questId,
+                    WikiUrl = $"https://ffxiv.consolegameswiki.com/wiki/{questName.Replace(' ', '_')}",
+                };
+
+                if (questRow != null)
+                {
+                    foreach (var pqId in new[] { questRow.PreviousQuest0, questRow.PreviousQuest1, questRow.PreviousQuest2 })
+                    {
+                        if (pqId > 0)
+                        {
+                            var pqName = csv?.LookupQuestById(pqId)?.Name;
+                            if (pqName != null)
+                                newItem.PrerequisiteNames.Add(pqName);
+                        }
+                    }
+                }
+
+                newItems.Add(newItem);
+                items.Add(newItem);
+                existingQuestIds.Add(questId);
+            }
+        }
+
+        return newItems;
+    }
+
+    private static List<uint> WalkPrerequisiteChain(uint terminalQuestId, CsvDataProvider csv, HashSet<uint> existingQuestIds)
+    {
+        var chain = new List<uint>();
+        var visited = new HashSet<uint> { terminalQuestId };
+        var stack = new Stack<uint>();
+        stack.Push(terminalQuestId);
+
+        while (stack.Count > 0)
+        {
+            var currentId = stack.Pop();
+
+            if (!existingQuestIds.Contains(currentId))
+                chain.Insert(0, currentId);
+
+            var row = csv.LookupQuestById((int)currentId);
+            if (row == null)
+                continue;
+
+            foreach (var pqId in new[] { row.PreviousQuest0, row.PreviousQuest1, row.PreviousQuest2 })
+            {
+                if (pqId > 0 && visited.Add((uint)pqId))
+                    stack.Push((uint)pqId);
+            }
+        }
+
+        return chain;
     }
 
     public static List<string> ExtractUnlockQuestNames(string html)
