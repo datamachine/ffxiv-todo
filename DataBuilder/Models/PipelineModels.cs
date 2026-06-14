@@ -59,6 +59,9 @@ public sealed class DetailItem
     [JsonPropertyName("achievementId")]
     public uint? AchievementId { get; set; }
 
+    [JsonPropertyName("unlockQuestIds")]
+    public List<uint> UnlockQuestIds { get; set; } = new();
+
     [JsonPropertyName("locationTerritoryId")]
     public uint? LocationTerritoryId { get; set; }
 }
@@ -89,6 +92,9 @@ public sealed class FormattedItem
     [JsonPropertyName("prerequisiteIds")]
     public List<uint> PrerequisiteIds { get; set; } = new();
 
+    [JsonPropertyName("locationTerritoryName")]
+    public string? LocationTerritoryName { get; set; }
+
     [JsonPropertyName("locationTerritoryId")]
     public uint? LocationTerritoryId { get; set; }
 
@@ -103,6 +109,9 @@ public sealed class FormattedItem
 
     [JsonPropertyName("achievementId")]
     public uint? AchievementId { get; set; }
+
+    [JsonPropertyName("unlockQuestIds")]
+    public List<uint> UnlockQuestIds { get; set; } = new();
 
     [JsonPropertyName("wikiUrl")]
     public string? WikiUrl { get; set; }

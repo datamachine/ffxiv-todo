@@ -91,4 +91,22 @@ public class ContentJsonFormatterTests
 
         Assert.Empty(result.Items[0].PrerequisiteIds);
     }
+
+    [Fact]
+    public void Format_UnlockQuestIds_MappedToFormattedItem()
+    {
+        var items = new List<DetailItem>
+        {
+            new()
+            {
+                Name = "Eden's Gate", Category = "RaidSeries", Expansion = "ShB",
+                Level = 80, UnlockQuestIds = [69163]
+            }
+        };
+
+        var result = ContentJsonFormatter.Format(items);
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal([69163u], item.UnlockQuestIds);
+    }
 }
