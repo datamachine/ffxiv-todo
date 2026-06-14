@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Interface.Windowing;
@@ -8,6 +9,7 @@ using FfxivTodo.Models;
 using FfxivTodo.Services;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Plugin.Services;
+using Newtonsoft.Json;
 
 namespace FfxivTodo.Windows;
 
@@ -25,13 +27,17 @@ public sealed class MainWindow : Window, IDisposable
     private readonly HashSet<ContentCategory> _selectedCategories = [];
     private readonly HashSet<FilterState> _selectedStates = [];
     private bool _firstDraw = true;
+    private bool _filterDirty;
+    private readonly string _filterFilePath;
+    private readonly HashSet<uint> _expandedChains = [];
 
     public MainWindow(
         ContentManager contentManager,
         ProgressStore progressStore,
         ProgressScanner progressScanner,
         MapFlagHelper mapFlagHelper,
-        OverlayWindow overlayWindow)
+        OverlayWindow overlayWindow,
+        string configDirectory)
         : base("FFXIV Todo")
     {
         _contentManager = contentManager;
@@ -39,12 +45,58 @@ public sealed class MainWindow : Window, IDisposable
         _progressScanner = progressScanner;
         _mapFlagHelper = mapFlagHelper;
         _overlayWindow = overlayWindow;
+        _filterFilePath = Path.Combine(configDirectory, "filters.json");
+
+        LoadFilterState();
 
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(600, 400),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
+    }
+
+    private void LoadFilterState()
+    {
+        if (!File.Exists(_filterFilePath)) return;
+
+        try
+        {
+            var json = File.ReadAllText(_filterFilePath);
+            var data = JsonConvert.DeserializeObject<FilterStateModel>(json);
+            if (data == null) return;
+
+            _searchText = data.SearchText ?? string.Empty;
+            if (data.Expansions != null)
+                _selectedExpansions.UnionWith(data.Expansions);
+            if (data.Categories != null)
+                _selectedCategories.UnionWith(data.Categories);
+            if (data.States != null)
+                _selectedStates.UnionWith(data.States);
+        }
+        catch { }
+    }
+
+    private void SaveFilterState()
+    {
+        var data = new FilterStateModel
+        {
+            SearchText = _searchText,
+            Expansions = _selectedExpansions.ToList(),
+            Categories = _selectedCategories.ToList(),
+            States = _selectedStates.ToList(),
+        };
+
+        var json = JsonConvert.SerializeObject(data, Formatting.Indented);
+        File.WriteAllText(_filterFilePath, json);
+    }
+
+    private sealed class FilterStateModel
+    {
+        public string? SearchText { get; set; }
+        public List<Expansion>? Expansions { get; set; }
+        public List<ContentCategory>? Categories { get; set; }
+        public List<FilterState>? States { get; set; }
     }
 
     public override void Draw()
@@ -75,6 +127,12 @@ public sealed class MainWindow : Window, IDisposable
             DrawDetailPanel();
             ImGui.EndChild();
             ImGui.EndTable();
+        }
+
+        if (_filterDirty)
+        {
+            _filterDirty = false;
+            SaveFilterState();
         }
     }
 
@@ -115,8 +173,9 @@ public sealed class MainWindow : Window, IDisposable
             "Category",
             _selectedCategories,
             MainWindowFilterLogic.GetCategoryLabel);
-        ImGui.SameLine();
+
         DrawStateChips();
+
         ImGui.SameLine();
         ImGui.SetNextItemWidth(150);
         ImGui.InputTextWithHint("##search", "Search...", ref _searchText, 100);
@@ -135,10 +194,14 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.SameLine();
 
         var summary = MainWindowFilterLogic.GetSummary(selected, getLabel, "All");
+        ImGui.SetNextItemWidth(150);
         if (ImGui.BeginCombo($"##{label}", summary))
         {
             if (ImGui.Selectable("All", selected.Count == 0))
+            {
                 selected.Clear();
+                _filterDirty = true;
+            }
 
             foreach (var value in Enum.GetValues<T>())
             {
@@ -147,6 +210,7 @@ public sealed class MainWindow : Window, IDisposable
                 {
                     if (!selected.Add(value))
                         selected.Remove(value);
+                    _filterDirty = true;
                 }
             }
 
@@ -156,12 +220,7 @@ public sealed class MainWindow : Window, IDisposable
 
     private void DrawStateChips()
     {
-        ImGui.AlignTextToFramePadding();
-        ImGui.TextUnformatted("States");
-        ImGui.SameLine();
-
-        var states = Enum.GetValues<FilterState>();
-        var lastState = states[states.Length - 1];
+        var states = new[] { FilterState.NotStarted, FilterState.InProgress, FilterState.Completed, FilterState.Locked, FilterState.Ignored };
 
         foreach (var state in states)
         {
@@ -169,19 +228,19 @@ public sealed class MainWindow : Window, IDisposable
             if (selected)
                 ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.25f, 0.45f, 0.25f, 1f));
 
-            if (ImGui.SmallButton($"{MainWindowFilterLogic.GetStateLabel(state)}##state-{state}"))
+            if (ImGui.SmallButton(MainWindowFilterLogic.GetStateLabel(state)))
             {
                 if (!selected)
                     _selectedStates.Add(state);
                 else
                     _selectedStates.Remove(state);
+                _filterDirty = true;
             }
 
             if (selected)
                 ImGui.PopStyleColor();
 
-            if (!EqualityComparer<FilterState>.Default.Equals(state, lastState))
-                ImGui.SameLine();
+            ImGui.SameLine();
         }
     }
 
@@ -192,7 +251,8 @@ public sealed class MainWindow : Window, IDisposable
 
         foreach (var expGroup in expansions)
         {
-            if (!ImGui.TreeNodeEx($"{expGroup.Key}##exp", ImGuiTreeNodeFlags.DefaultOpen))
+            var expLabel = MainWindowFilterLogic.GetExpansionLabel(expGroup.Key);
+            if (!ImGui.TreeNodeEx($"{expLabel}##exp", ImGuiTreeNodeFlags.DefaultOpen))
                 continue;
 
             var categories = expGroup
@@ -207,7 +267,8 @@ public sealed class MainWindow : Window, IDisposable
                 if (items.Count == 0)
                     continue;
 
-                if (!ImGui.TreeNodeEx($"{catGroup.Key} ({items.Count})##cat", ImGuiTreeNodeFlags.DefaultOpen))
+                var catLabel = MainWindowFilterLogic.GetCategoryLabel(catGroup.Key);
+                if (!ImGui.TreeNodeEx($"{catLabel} ({items.Count})##cat", ImGuiTreeNodeFlags.DefaultOpen))
                     continue;
 
                 foreach (var item in items)
@@ -246,18 +307,29 @@ public sealed class MainWindow : Window, IDisposable
     {
         var entry = _progressStore.GetOrCreate(item.Id);
         var locked = _contentManager.IsLocked(item.Id);
-        var statusIcon = GetStatusIcon(entry, locked);
         var displayName = entry.IsIgnored ? $"(ignored) {item.Name}" : item.Name;
         var color = entry.IsManual ? new Vector4(0.7f, 0.7f, 1.0f, 1.0f) : GetStatusColor(entry.Status, locked);
 
-        var flags = locked ? ImGuiTreeNodeFlags.Leaf : ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.DefaultOpen;
+        ImGui.PushID((int)item.Id);
 
+        var isTracked = entry.IsTracked;
+        var val = isTracked;
+        if (ImGui.Checkbox("##cb", ref val) && val != isTracked)
+        {
+            _progressStore.SetTracked(item.Id, val);
+            _progressStore.Save();
+            if (val) _overlayWindow.IsOpen = true;
+        }
+
+        ImGui.SameLine();
         ImGui.PushStyleColor(ImGuiCol.Text, color);
         var isSelected = _selectedItemId == item.Id;
 
-        if (ImGui.Selectable($"{statusIcon} {displayName}##{item.Id}", isSelected))
+        if (ImGui.Selectable($"{displayName}##name", isSelected))
             _selectedItemId = item.Id;
         ImGui.PopStyleColor();
+
+        ImGui.PopID();
 
         if (ImGui.IsItemHovered())
         {
@@ -281,6 +353,55 @@ public sealed class MainWindow : Window, IDisposable
         {
             DrawContextMenu(item);
             ImGui.EndPopup();
+        }
+
+        if (item.UnlockQuestIds.Length > 0)
+        {
+            var quests = _contentManager.GetUnlockQuests(item.Id);
+            var nextQuest = quests.FirstOrDefault(q =>
+            {
+                var qe = _progressStore.GetOrCreate(q.Id);
+                return qe.Status != ItemStatus.Completed;
+            });
+
+            if (nextQuest != null)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(0.6f, 0.8f, 1.0f, 1), $"→ {nextQuest.Name}");
+            }
+
+            var isExpanded = _expandedChains.Contains(item.Id);
+            if (isExpanded)
+                ImGui.SetNextItemOpen(true);
+            if (ImGui.TreeNodeEx($"##chain_{item.Id}", ImGuiTreeNodeFlags.None))
+            {
+                _expandedChains.Add(item.Id);
+
+                foreach (var quest in quests)
+                {
+                    var qe = _progressStore.GetOrCreate(quest.Id);
+                    var qLocked = _contentManager.IsLocked(quest.Id);
+                    var qColor = GetStatusColor(qe.Status, qLocked);
+
+                    ImGui.PushID((int)quest.Id);
+                    ImGui.Indent();
+
+                    ImGui.PushStyleColor(ImGuiCol.Text, qColor);
+                    var qSelected = _selectedItemId == quest.Id;
+                    if (ImGui.Selectable($"{quest.Name}##qname", qSelected))
+                        _selectedItemId = quest.Id;
+                    ImGui.PopStyleColor();
+
+                    ImGui.Unindent();
+                    ImGui.PopID();
+                }
+
+                ImGui.TreePop();
+            }
+            else
+            {
+                _expandedChains.Remove(item.Id);
+            }
         }
     }
 
@@ -315,14 +436,14 @@ public sealed class MainWindow : Window, IDisposable
         if (entry.Status != ItemStatus.Completed &&
             ImGui.MenuItem("Mark as Complete"))
         {
-            _progressStore.SetStatus(item.Id, ItemStatus.Completed, true);
+            _progressStore.SetStatus(item.Id, ItemStatus.Completed, true, _contentManager.Items);
             _progressStore.Save();
         }
 
         if (entry.Status != ItemStatus.NotStarted &&
             ImGui.MenuItem("Reset to Not Started"))
         {
-            _progressStore.SetStatus(item.Id, ItemStatus.NotStarted, true);
+            _progressStore.SetStatus(item.Id, ItemStatus.NotStarted, true, _contentManager.Items);
             _progressStore.Save();
         }
 
@@ -371,6 +492,19 @@ public sealed class MainWindow : Window, IDisposable
             }
         }
 
+        if (item.UnlockQuestIds.Length > 0)
+        {
+            ImGui.Separator();
+            ImGui.Text("Unlock Quest Chain:");
+            var quests = _contentManager.GetUnlockQuests(item.Id);
+            foreach (var quest in quests)
+            {
+                var qe = _progressStore.GetOrCreate(quest.Id);
+                var icon = GetStatusIcon(qe, _contentManager.IsLocked(quest.Id));
+                ImGui.Text($"  {icon} {quest.Name} (Lv.{quest.Level})");
+            }
+        }
+
         ImGui.Separator();
 
         if (entry.IsTracked ? ImGui.Button("Untrack") : ImGui.Button("Track"))
@@ -387,7 +521,8 @@ public sealed class MainWindow : Window, IDisposable
             _progressStore.Save();
         }
 
-        var canFlag = item.LocationTerritoryId.HasValue && item.LocationTerritoryId != 0;
+        var canFlag = (item.LocationTerritoryId.HasValue && item.LocationTerritoryId.Value != 0) ||
+                       (item.LocationMapX.HasValue && !string.IsNullOrEmpty(item.LocationTerritoryName));
         if (!canFlag)
             ImGui.BeginDisabled();
         if (ImGui.Button("Flag on Map"))
@@ -406,13 +541,13 @@ public sealed class MainWindow : Window, IDisposable
 
         if (ImGui.Button("Mark Complete"))
         {
-            _progressStore.SetStatus(item.Id, ItemStatus.Completed, true);
+            _progressStore.SetStatus(item.Id, ItemStatus.Completed, true, _contentManager.Items);
             _progressStore.Save();
         }
         ImGui.SameLine();
         if (ImGui.Button("Reset"))
         {
-            _progressStore.SetStatus(item.Id, ItemStatus.NotStarted, true);
+            _progressStore.SetStatus(item.Id, ItemStatus.NotStarted, true, _contentManager.Items);
             _progressStore.Save();
         }
         if (entry.IsManual)
@@ -454,6 +589,7 @@ public sealed class MainWindow : Window, IDisposable
         _selectedCategories.Clear();
         _selectedStates.Clear();
         _searchText = string.Empty;
+        _filterDirty = true;
     }
 
     public void Dispose() { }
