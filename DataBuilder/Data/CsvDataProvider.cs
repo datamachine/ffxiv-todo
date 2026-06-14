@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using CsvHelper;
 using CsvHelper.Configuration;
@@ -17,6 +17,7 @@ public sealed class CsvDataProvider
 
     private readonly HttpClient _http;
     private readonly string _csvCacheDir;
+    private readonly SemaphoreSlim _lock = new(1, 1);
 
     private readonly Dictionary<string, QuestCsvRow> _questByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, QuestCsvRow> _questById = new();
@@ -27,36 +28,54 @@ public sealed class CsvDataProvider
 
     public CsvDataProvider(HttpClient http, string cacheDir)
     {
-        _http = http;
-        _csvCacheDir = cacheDir;
+        _http = http ?? throw new ArgumentNullException(nameof(http));
+        _csvCacheDir = cacheDir ?? throw new ArgumentNullException(nameof(cacheDir));
     }
 
     public async Task InitializeAsync(bool forceRefresh = false)
     {
-        if (_initialized) return;
-
-        Directory.CreateDirectory(_csvCacheDir);
-
-        var questPath = Path.Combine(_csvCacheDir, "Quest.csv");
-        var isCached = File.Exists(questPath);
-        var cacheAge = isCached
-            ? DateTime.UtcNow - File.GetLastWriteTimeUtc(questPath)
-            : TimeSpan.MaxValue;
-
-        if (!isCached || cacheAge > CacheMaxAge || forceRefresh)
+        await _lock.WaitAsync();
+        try
         {
-            await DownloadCsvAsync("Quest.csv");
-            await DownloadCsvAsync("ENpcResident.csv");
-            await DownloadCsvAsync("TerritoryType.csv");
-            await DownloadCsvAsync("PlaceName.csv");
+            if (forceRefresh)
+            {
+                _initialized = false;
+                _questByName.Clear();
+                _questById.Clear();
+                _npcNames.Clear();
+                _territoryNames.Clear();
+                _placeNames.Clear();
+            }
+
+            if (_initialized) return;
+
+            Directory.CreateDirectory(_csvCacheDir);
+
+            var questPath = Path.Combine(_csvCacheDir, "Quest.csv");
+            var isCached = File.Exists(questPath);
+            var cacheAge = isCached
+                ? DateTime.UtcNow - File.GetLastWriteTimeUtc(questPath)
+                : TimeSpan.MaxValue;
+
+            if (!isCached || cacheAge > CacheMaxAge || forceRefresh)
+            {
+                await DownloadCsvAsync("Quest.csv");
+                await DownloadCsvAsync("ENpcResident.csv");
+                await DownloadCsvAsync("TerritoryType.csv");
+                await DownloadCsvAsync("PlaceName.csv");
+            }
+
+            LoadQuests();
+            LoadNpcs();
+            LoadTerritories();
+            LoadPlaceNames();
+
+            _initialized = true;
         }
-
-        LoadQuests();
-        LoadNpcs();
-        LoadTerritories();
-        LoadPlaceNames();
-
-        _initialized = true;
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public QuestCsvRow? LookupQuest(string name)
@@ -99,7 +118,8 @@ public sealed class CsvDataProvider
             .Replace('\u2019', '\'')
             .Replace('\u201c', '"')
             .Replace('\u201d', '"')
-            .Trim();
+            .Trim()
+            .Trim('"');
     }
 
     internal static string RemoveParentheticals(string name)
@@ -115,9 +135,18 @@ public sealed class CsvDataProvider
         var filePath = Path.Combine(_csvCacheDir, fileName);
 
         Console.WriteLine($"  Downloading {fileName}...");
-        var bytes = await _http.GetByteArrayAsync(url);
-        await File.WriteAllBytesAsync(filePath, bytes);
-        File.SetLastWriteTimeUtc(filePath, DateTime.UtcNow);
+        try
+        {
+            var bytes = await _http.GetByteArrayAsync(url);
+            await File.WriteAllBytesAsync(filePath, bytes);
+            File.SetLastWriteTimeUtc(filePath, DateTime.UtcNow);
+        }
+        catch
+        {
+            try { File.Delete(filePath); } catch { }
+            Console.Error.WriteLine($"  Failed to download {fileName}");
+            throw;
+        }
     }
 
     private void LoadQuests()
