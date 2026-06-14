@@ -160,7 +160,10 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted("States");
         ImGui.SameLine();
 
-        foreach (var state in Enum.GetValues<FilterState>())
+        var states = Enum.GetValues<FilterState>();
+        var lastState = states[states.Length - 1];
+
+        foreach (var state in states)
         {
             var selected = _selectedStates.Contains(state);
             if (selected)
@@ -177,7 +180,8 @@ public sealed class MainWindow : Window, IDisposable
             if (selected)
                 ImGui.PopStyleColor();
 
-            ImGui.SameLine();
+            if (!EqualityComparer<FilterState>.Default.Equals(state, lastState))
+                ImGui.SameLine();
         }
     }
 
@@ -199,6 +203,9 @@ public sealed class MainWindow : Window, IDisposable
             {
                 var filteredItems = FilterItems(catGroup);
                 var items = filteredItems.ToList();
+
+                if (items.Count == 0)
+                    continue;
 
                 if (!ImGui.TreeNodeEx($"{catGroup.Key} ({items.Count})##cat", ImGuiTreeNodeFlags.DefaultOpen))
                     continue;

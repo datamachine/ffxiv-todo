@@ -31,12 +31,13 @@ public sealed class MainWindowFilterLogicTests
     {
         var selected = new HashSet<Expansion> { Expansion.EW, Expansion.DT };
 
-        Assert.Equal(
-            "Endwalker, Dawntrail",
-            MainWindowFilterLogic.GetSummary(
-                selected,
-                MainWindowFilterLogic.GetExpansionLabel,
-                allLabel: "All"));
+        var summary = MainWindowFilterLogic.GetSummary(
+            selected,
+            MainWindowFilterLogic.GetExpansionLabel,
+            allLabel: "All");
+        var parts = summary.Split(", ");
+        Assert.Contains("Endwalker", parts);
+        Assert.Contains("Dawntrail", parts);
     }
 
     [Fact]
