@@ -11,7 +11,6 @@ public sealed class UnlockQuestResolver
 {
     private readonly string _overrideFilePath;
     private Dictionary<string, List<uint>> _overridesByName = new(StringComparer.OrdinalIgnoreCase);
-    private HashSet<string> _overriddenNames = new(StringComparer.OrdinalIgnoreCase);
 
     public UnlockQuestResolver(string overrideFilePath)
     {
@@ -19,7 +18,7 @@ public sealed class UnlockQuestResolver
         LoadOverrides();
     }
 
-    public bool IsOverridden(string contentName) => _overriddenNames.Contains(contentName);
+    public bool IsOverridden(string contentName) => _overridesByName.ContainsKey(contentName);
 
     public void Resolve(List<DetailItem> items)
     {
@@ -42,11 +41,17 @@ public sealed class UnlockQuestResolver
         if (file?.Overrides == null || file.Overrides.Count == 0)
             return;
 
-        _overridesByName = file.Overrides
-            .GroupBy(o => o.ContentName)
-            .ToDictionary(g => g.Key, g => g.First().QuestIds, StringComparer.OrdinalIgnoreCase);
-
-        _overriddenNames = new HashSet<string>(
-            file.Overrides.Select(o => o.ContentName), StringComparer.OrdinalIgnoreCase);
+        var dict = new Dictionary<string, List<uint>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var o in file.Overrides)
+        {
+            if (dict.ContainsKey(o.ContentName))
+            {
+                Console.Error.WriteLine(
+                    $"Warning: Duplicate ContentName '{o.ContentName}' in quest chain overrides. Keeping first entry.");
+                continue;
+            }
+            dict[o.ContentName] = o.QuestIds;
+        }
+        _overridesByName = dict;
     }
 }
