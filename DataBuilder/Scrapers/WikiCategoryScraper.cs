@@ -656,6 +656,59 @@ public sealed class WikiCategoryScraper
         return items;
     }
 
+    public List<CategoryItem> ParseFauxHollowsPage(HtmlNode contentNode)
+    {
+        return new List<CategoryItem>
+        {
+            new()
+            {
+                Name = "Faux Hollows",
+                Category = "FauxHollows",
+                Expansion = "ShB"
+            }
+        };
+    }
+
+    public List<CategoryItem> ParseMaskedCarnivalePage(HtmlNode contentNode)
+    {
+        return new List<CategoryItem>
+        {
+            new()
+            {
+                Name = "The Masked Carnivale",
+                Category = "MaskedCarnivale",
+                Expansion = "SB"
+            }
+        };
+    }
+
+    public List<CategoryItem> ParseIshgardianRestorationPage(HtmlNode contentNode)
+    {
+        return new List<CategoryItem>
+        {
+            new()
+            {
+                Name = "Ishgardian Restoration",
+                Category = "IshgardianRestoration",
+                Expansion = "ShB"
+            }
+        };
+    }
+
+    private static List<CategoryItem> GetStaticRelicWeapons()
+    {
+        return new List<CategoryItem>
+        {
+            new() { Name = "Zodiac Weapons",      Category = "RelicWeapon", Expansion = "ARR" },
+            new() { Name = "Anima Weapons",       Category = "RelicWeapon", Expansion = "HW"  },
+            new() { Name = "Eureka Weapons",      Category = "RelicWeapon", Expansion = "SB"  },
+            new() { Name = "Resistance Weapons",  Category = "RelicWeapon", Expansion = "ShB" },
+            new() { Name = "Skysteel Tools",      Category = "RelicWeapon", Expansion = "ShB" },
+            new() { Name = "Manderville Weapons", Category = "RelicWeapon", Expansion = "EW"  },
+            new() { Name = "Phantom Weapons",     Category = "RelicWeapon", Expansion = "DT"  },
+        };
+    }
+
     public async Task<List<CategoryItem>> ScrapeCustomDeliveriesAsync()
     {
         var items = new List<CategoryItem>();
