@@ -93,6 +93,6 @@
     { "contentName": "Ishgardian Restoration", "questIds": [69208], "explicitChain": false },
     { "contentName": "The Gold Saucer", "questIds": [65970], "explicitChain": false },
     { "contentName": "Treasure Hunts", "questIds": [66747], "explicitChain": false },
-    { "contentName": "Companion Chocobo", "questIds": [66698], "explicitChain": false }
+    { "contentName": "Companion Chocobo", "questIds": [66236, 66698, 67096], "explicitChain": true }
   ]
 }

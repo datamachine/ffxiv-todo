@@ -65,17 +65,25 @@ public sealed class ProgressScanner : IDisposable
             var anyFound = false;
             var hasInProgress = false;
             var allComplete = true;
+            var isAnyMatch = parent.Category == ContentCategory.Chocobo;
 
             foreach (var questId in parent.UnlockQuestIds)
             {
                 if (!questIdToItem.TryGetValue(questId, out var questItem))
                 {
-                    allComplete = false;
+                    if (!isAnyMatch)
+                        allComplete = false;
                     continue;
                 }
 
                 anyFound = true;
                 var questStatus = _store.GetOrCreate(questItem.Id).Status;
+
+                if (questStatus == ItemStatus.Completed && isAnyMatch)
+                {
+                    parentEntry.Status = ItemStatus.Completed;
+                    goto nextParent;
+                }
 
                 if (questStatus == ItemStatus.NotStarted)
                     allComplete = false;
@@ -92,6 +100,8 @@ public sealed class ProgressScanner : IDisposable
                 parentEntry.Status = ItemStatus.InProgress;
             else
                 parentEntry.Status = ItemStatus.NotStarted;
+
+            nextParent:;
         }
     }
 

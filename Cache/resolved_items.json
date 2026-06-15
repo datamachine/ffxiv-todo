@@ -12415,8 +12415,8 @@
       "achievementId": null,
       "unlockQuestIds": [
         66236,
-        66237,
-        66238
+        66698,
+        67096
       ],
       "locationTerritoryId": null
     },
@@ -35525,38 +35525,6 @@
       "edbUrl": null,
       "wikiUrl": "https://ffxiv.consolegameswiki.com/wiki/My_Little_Chocobo_(Twin_Adder)",
       "questId": 66236,
-      "achievementId": null,
-      "unlockQuestIds": [],
-      "locationTerritoryId": null
-    },
-    {
-      "name": "My Little Chocobo (Maelstrom)",
-      "category": "BlueUnlock",
-      "expansion": "ARR",
-      "level": 20,
-      "locationTerritoryName": "Limsa Lominsa Upper Decks",
-      "locationMapX": 13.1,
-      "locationMapY": 12.8,
-      "prerequisiteNames": [],
-      "edbUrl": null,
-      "wikiUrl": "https://ffxiv.consolegameswiki.com/wiki/My_Little_Chocobo_(Maelstrom)",
-      "questId": 66237,
-      "achievementId": null,
-      "unlockQuestIds": [],
-      "locationTerritoryId": null
-    },
-    {
-      "name": "My Little Chocobo (Immortal Flames)",
-      "category": "BlueUnlock",
-      "expansion": "ARR",
-      "level": 20,
-      "locationTerritoryName": "Ul\u0027dah - Steps of Nald",
-      "locationMapX": 8,
-      "locationMapY": 8,
-      "prerequisiteNames": [],
-      "edbUrl": null,
-      "wikiUrl": "https://ffxiv.consolegameswiki.com/wiki/My_Little_Chocobo_(Immortal_Flames)",
-      "questId": 66238,
       "achievementId": null,
       "unlockQuestIds": [],
       "locationTerritoryId": null
