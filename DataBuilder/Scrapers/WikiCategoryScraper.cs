@@ -825,6 +825,63 @@ public sealed class WikiCategoryScraper
             Console.Error.WriteLine($"WARN: Failed to scrape custom deliveries: {ex.Message}");
         }
 
+        // Role Quests
+        try
+        {
+            var roleItems = await FetchAndParseAsync("/wiki/Role_Quests", doc =>
+                ParseRoleQuestsPage(doc.DocumentNode));
+            allItems.AddRange(roleItems);
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"WARN: Failed to scrape Role Quests: {ex.Message}"); }
+
+        // Variant & Criterion Dungeons
+        try
+        {
+            var variantItems = await FetchAndParseAsync("/wiki/Variant_and_Criterion_Dungeons", doc =>
+                ParseVariantDungeonsPage(doc.DocumentNode));
+            allItems.AddRange(variantItems);
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"WARN: Failed to scrape Variant Dungeons: {ex.Message}"); }
+
+        // Island Sanctuary
+        try
+        {
+            var islandItems = await FetchAndParseAsync("/wiki/Island_Sanctuary", doc =>
+                ParseIslandSanctuaryPage(doc.DocumentNode));
+            allItems.AddRange(islandItems);
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"WARN: Failed to scrape Island Sanctuary: {ex.Message}"); }
+
+        // Faux Hollows
+        try
+        {
+            var fauxItems = await FetchAndParseAsync("/wiki/Faux_Hollows", doc =>
+                ParseFauxHollowsPage(doc.DocumentNode));
+            allItems.AddRange(fauxItems);
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"WARN: Failed to scrape Faux Hollows: {ex.Message}"); }
+
+        // The Masked Carnivale
+        try
+        {
+            var carnItems = await FetchAndParseAsync("/wiki/The_Masked_Carnivale", doc =>
+                ParseMaskedCarnivalePage(doc.DocumentNode));
+            allItems.AddRange(carnItems);
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"WARN: Failed to scrape Masked Carnivale: {ex.Message}"); }
+
+        // Ishgardian Restoration
+        try
+        {
+            var restoItems = await FetchAndParseAsync("/wiki/Ishgardian_Restoration", doc =>
+                ParseIshgardianRestorationPage(doc.DocumentNode));
+            allItems.AddRange(restoItems);
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"WARN: Failed to scrape Ishgardian Restoration: {ex.Message}"); }
+
+        // Relic Weapons (static)
+        allItems.AddRange(GetStaticRelicWeapons());
+
         return allItems.DistinctBy(i => i.Name).ToList();
     }
 
