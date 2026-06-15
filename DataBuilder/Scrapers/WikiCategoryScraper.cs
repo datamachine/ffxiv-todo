@@ -380,7 +380,7 @@ public sealed class WikiCategoryScraper
             if (sectionId == "Dungeons")
                 currentCategory = "Dungeon";
             else if (sectionId == "PvP")
-                currentCategory = "PvP";
+                currentCategory = string.Empty;
 
             var table = FindNextTable(heading);
             if (table == null || string.IsNullOrEmpty(currentCategory)) continue;
@@ -935,6 +935,15 @@ public sealed class WikiCategoryScraper
         allItems.AddRange(new List<CategoryItem>
         {
             new() { Name = "Companion Chocobo", Category = "Chocobo", Expansion = "ARR" }
+        });
+
+        // PvP modes
+        allItems.AddRange(new List<CategoryItem>
+        {
+            new() { Name = "Wolves' Den Pier", Category = "PvP", Expansion = "ARR" },
+            new() { Name = "Frontline", Category = "PvP", Expansion = "ARR" },
+            new() { Name = "Rival Wings", Category = "PvP", Expansion = "ARR" },
+            new() { Name = "Crystalline Conflict", Category = "PvP", Expansion = "ARR" },
         });
 
         return allItems.DistinctBy(i => i.Name).ToList();

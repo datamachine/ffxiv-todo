@@ -65,7 +65,7 @@ public sealed class ProgressScanner : IDisposable
             var anyFound = false;
             var hasInProgress = false;
             var allComplete = true;
-            var isAnyMatch = parent.Category == ContentCategory.Chocobo;
+            var isAnyMatch = parent.Category is ContentCategory.Chocobo or ContentCategory.PvP;
 
             foreach (var questId in parent.UnlockQuestIds)
             {

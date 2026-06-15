@@ -93,6 +93,10 @@
     { "contentName": "Ishgardian Restoration", "questIds": [69208], "explicitChain": false },
     { "contentName": "The Gold Saucer", "questIds": [65970], "explicitChain": false },
     { "contentName": "Treasure Hunts", "questIds": [66747], "explicitChain": false },
-    { "contentName": "Companion Chocobo", "questIds": [66236, 66698, 67096], "explicitChain": true }
+    { "contentName": "Companion Chocobo", "questIds": [66236, 66698, 67096], "explicitChain": true },
+    { "contentName": "Wolves' Den Pier", "questIds": [66640, 66641, 66642], "explicitChain": true },
+    { "contentName": "Frontline", "questIds": [67063, 67064, 67065], "explicitChain": true },
+    { "contentName": "Rival Wings", "questIds": [68543], "explicitChain": true },
+    { "contentName": "Crystalline Conflict", "questIds": [70121], "explicitChain": true }
   ]
 }

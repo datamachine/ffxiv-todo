@@ -2356,46 +2356,6 @@
       "expansion": "ARR"
     },
     {
-      "name": "A Pup No Longer (Immortal Flames)",
-      "category": "PvP",
-      "expansion": "ARR"
-    },
-    {
-      "name": "A Pup No Longer (Maelstrom)",
-      "category": "PvP",
-      "expansion": "ARR"
-    },
-    {
-      "name": "A Pup No Longer (Twin Adder)",
-      "category": "PvP",
-      "expansion": "ARR"
-    },
-    {
-      "name": "Like Civilized Men and Women (Immortal Flames)",
-      "category": "PvP",
-      "expansion": "ARR"
-    },
-    {
-      "name": "Like Civilized Men and Women (Maelstrom)",
-      "category": "PvP",
-      "expansion": "ARR"
-    },
-    {
-      "name": "Like Civilized Men and Women (Twin Adder)",
-      "category": "PvP",
-      "expansion": "ARR"
-    },
-    {
-      "name": "Earning Your Wings",
-      "category": "PvP",
-      "expansion": "ARR"
-    },
-    {
-      "name": "The Crystal (Line\u0027s) Call",
-      "category": "PvP",
-      "expansion": "ARR"
-    },
-    {
       "name": "And We Shall Call it Eureka",
       "category": "BlueUnlock",
       "expansion": "ARR"
@@ -3118,6 +3078,26 @@
     {
       "name": "Companion Chocobo",
       "category": "Chocobo",
+      "expansion": "ARR"
+    },
+    {
+      "name": "Wolves\u0027 Den Pier",
+      "category": "PvP",
+      "expansion": "ARR"
+    },
+    {
+      "name": "Frontline",
+      "category": "PvP",
+      "expansion": "ARR"
+    },
+    {
+      "name": "Rival Wings",
+      "category": "PvP",
+      "expansion": "ARR"
+    },
+    {
+      "name": "Crystalline Conflict",
+      "category": "PvP",
       "expansion": "ARR"
     }
   ]
