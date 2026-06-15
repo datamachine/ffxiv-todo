@@ -51,7 +51,7 @@ public sealed class Plugin : IDalamudPlugin
         _contentManager.SetProgress(_progressStore.GetAll());
 
         _overlayWindow = new OverlayWindow(_contentManager, _progressStore, _mapFlagHelper);
-        _overlayWindow.IsOpen = Configuration.OverlayVisible;
+        _overlayWindow.IsOpen = Configuration.OverlayVisible && ClientState.IsLoggedIn;
 
         _mainWindow = new MainWindow(_contentManager, _progressStore, _progressScanner, _mapFlagHelper, _overlayWindow, PluginInterface.ConfigDirectory.FullName);
 
