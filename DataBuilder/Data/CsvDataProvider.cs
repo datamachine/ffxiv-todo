@@ -22,6 +22,7 @@ public sealed class CsvDataProvider
     private readonly Dictionary<string, QuestCsvRow> _questByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, QuestCsvRow> _questById = new();
     private readonly Dictionary<string, AchievementCsvRow> _achievementByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, AchievementCsvRow> _achievementById = new();
     private readonly Dictionary<int, string> _npcNames = new();
     private readonly Dictionary<int, string> _territoryNames = new();
     private readonly Dictionary<int, string> _placeNames = new();
@@ -124,11 +125,12 @@ public sealed class CsvDataProvider
 
     internal static string NormalizeName(string name)
     {
-        return name
+        return string.Concat(name
             .Replace('\u2018', '\'')
             .Replace('\u2019', '\'')
             .Replace('\u201c', '"')
             .Replace('\u201d', '"')
+            .Where(c => c < 0xE000 || c > 0xF8FF))
             .Trim()
             .Trim('"');
     }
@@ -179,10 +181,10 @@ public sealed class CsvDataProvider
         foreach (var row in records)
         {
             if (row.Id == 0) continue;
-            var key = NormalizeName(row.Name);
-            if (!string.IsNullOrEmpty(key))
+            row.Name = NormalizeName(row.Name);
+            if (!string.IsNullOrEmpty(row.Name))
             {
-                _questByName[key] = row;
+                _questByName[row.Name] = row;
                 _questById[row.Id] = row;
             }
         }
@@ -211,7 +213,10 @@ public sealed class CsvDataProvider
             if (row.Id == 0) continue;
             var key = NormalizeName(row.Name);
             if (!string.IsNullOrEmpty(key))
+            {
                 _achievementByName[key] = row;
+                _achievementById[row.Id] = row;
+            }
         }
 
         Console.WriteLine($"  Loaded {_achievementByName.Count} achievements from CSV.");
@@ -228,6 +233,11 @@ public sealed class CsvDataProvider
             return row;
 
         return null;
+    }
+
+    public AchievementCsvRow? LookupAchievementById(int achievementId)
+    {
+        return _achievementById.TryGetValue(achievementId, out var row) ? row : null;
     }
 
     private void LoadNpcs()

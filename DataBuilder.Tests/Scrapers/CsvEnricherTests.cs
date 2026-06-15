@@ -45,7 +45,13 @@ public sealed class CsvEnricherTests
 
         var results = enricher.Enrich(categoryItems);
 
-        Assert.Empty(results);
+        var item = Assert.Single(results);
+        Assert.Equal("Nonexistent Quest", item.Name);
+        Assert.Equal("JobQuest", item.Category);
+        Assert.Equal("ARR", item.Expansion);
+        Assert.Null(item.Level);
+        Assert.Null(item.QuestId);
+        Assert.NotNull(item.WikiUrl);
     }
 
     private static async Task<CsvDataProvider> CreateProviderAsync()

@@ -27,4 +27,18 @@ internal static class QuestHelper
     {
         return _isQuestComplete?.Invoke((ushort)questId) ?? false;
     }
+
+    public static unsafe bool IsQuestInProgress(uint questId)
+    {
+        try
+        {
+            var manager = QuestManager.Instance();
+            if (manager == null) return false;
+            return manager->IsQuestAccepted((ushort)questId);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

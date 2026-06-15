@@ -360,7 +360,7 @@ public sealed class WikiCategoryScraper
                 || sectionId.Contains("Allied_Society") || sectionId.Contains("Locations")
                 || sectionId.Contains("Glamour") || sectionId.Contains("Achievement")
                 || sectionId.Contains("Seasonal") || sectionId.Contains("Special")
-                || sectionId.Contains("PvP") || sectionId.Contains("Guildhests")
+                || sectionId.Contains("Guildhests")
                 || sectionId.Contains("Stone,"))
             { currentCategory = string.Empty; continue; }
 
@@ -370,7 +370,17 @@ public sealed class WikiCategoryScraper
                     || sectionId.Contains("Twin_Adder") || sectionId.Contains("Order_of")))
             { currentCategory = string.Empty; continue; }
 
+            // Other Instances — container section, don't parse its own table
+            if (sectionId == "Other_Instances")
+            { currentCategory = "BlueUnlock"; continue; }
+
             currentCategory = "BlueUnlock";
+
+            // Override for specific sections under Other Instances
+            if (sectionId == "Dungeons")
+                currentCategory = "Dungeon";
+            else if (sectionId == "PvP")
+                currentCategory = "PvP";
 
             var table = FindNextTable(heading);
             if (table == null || string.IsNullOrEmpty(currentCategory)) continue;
@@ -692,6 +702,30 @@ public sealed class WikiCategoryScraper
         };
     }
 
+    public List<CategoryItem> ParseGoldSaucerPage(HtmlNode contentNode)
+    {
+        return new List<CategoryItem>
+        {
+            new() { Name = "The Gold Saucer", Category = "GoldSaucer", Expansion = "ARR" }
+        };
+    }
+
+    public List<CategoryItem> ParseTreasureHuntPage(HtmlNode contentNode)
+    {
+        return new List<CategoryItem>
+        {
+            new() { Name = "Treasure Hunts", Category = "TreasureHunt", Expansion = "ARR" }
+        };
+    }
+
+    public List<CategoryItem> ParseChocoboPage(HtmlNode contentNode)
+    {
+        return new List<CategoryItem>
+        {
+            new() { Name = "Companion Chocobo", Category = "Chocobo", Expansion = "ARR" }
+        };
+    }
+
     private static List<CategoryItem> GetStaticRelicWeapons()
     {
         return new List<CategoryItem>
@@ -884,6 +918,24 @@ public sealed class WikiCategoryScraper
 
         // Relic Weapons (static)
         allItems.AddRange(GetStaticRelicWeapons());
+
+        // Gold Saucer
+        allItems.AddRange(new List<CategoryItem>
+        {
+            new() { Name = "The Gold Saucer", Category = "GoldSaucer", Expansion = "ARR" }
+        });
+
+        // Treasure Hunts
+        allItems.AddRange(new List<CategoryItem>
+        {
+            new() { Name = "Treasure Hunts", Category = "TreasureHunt", Expansion = "ARR" }
+        });
+
+        // Companion Chocobo
+        allItems.AddRange(new List<CategoryItem>
+        {
+            new() { Name = "Companion Chocobo", Category = "Chocobo", Expansion = "ARR" }
+        });
 
         return allItems.DistinctBy(i => i.Name).ToList();
     }

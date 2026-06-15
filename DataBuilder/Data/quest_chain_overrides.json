@@ -90,6 +90,9 @@
     { "contentName": "Island Sanctuary", "questIds": [70179, 70181, 70265, 70299, 70329, 70330], "explicitChain": true },
     { "contentName": "Faux Hollows", "questIds": [69501], "explicitChain": false },
     { "contentName": "The Masked Carnivale", "questIds": [68734], "explicitChain": false },
-    { "contentName": "Ishgardian Restoration", "questIds": [69208], "explicitChain": false }
+    { "contentName": "Ishgardian Restoration", "questIds": [69208], "explicitChain": false },
+    { "contentName": "The Gold Saucer", "questIds": [65970], "explicitChain": false },
+    { "contentName": "Treasure Hunts", "questIds": [66747], "explicitChain": false },
+    { "contentName": "Companion Chocobo", "questIds": [66698], "explicitChain": false }
   ]
 }

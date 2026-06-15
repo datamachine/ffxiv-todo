@@ -14,4 +14,5 @@ public sealed class Configuration : IPluginConfiguration
     public bool OverlayLocked { get; set; } = false;
     public float OverlayFontScale { get; set; } = 1.0f;
     public int ScanDebounceMs { get; set; } = 2000;
+    public bool OverlayVisible { get; set; } = false;
 }

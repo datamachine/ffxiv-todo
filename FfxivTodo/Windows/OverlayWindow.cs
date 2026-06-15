@@ -18,33 +18,24 @@ public sealed class OverlayWindow : Window, IDisposable
         ContentManager contentManager,
         ProgressStore progressStore,
         MapFlagHelper mapFlagHelper)
-        : base("Todo", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize |
-                         ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse |
-                         ImGuiWindowFlags.AlwaysAutoResize)
+        : base("Tracked Quests")
     {
         _contentManager = contentManager;
         _progressStore = progressStore;
         _mapFlagHelper = mapFlagHelper;
 
-        IsOpen = true;
+        Size = new Vector2(350, 300);
+        SizeCondition = ImGuiCond.FirstUseEver;
     }
 
     public override void Draw()
     {
-        var config = Plugin.PluginInterface.GetPluginConfig() as Configuration;
-        if (config == null)
-            return;
-
-        Position = config.OverlayPosition;
+        var config = Plugin.Configuration;
 
         if (config.OverlayLocked)
-        {
             Flags |= ImGuiWindowFlags.NoMove;
-        }
         else
-        {
             Flags &= ~ImGuiWindowFlags.NoMove;
-        }
 
         var alpha = config.OverlayOpacity / 100f;
         ImGui.PushStyleVar(ImGuiStyleVar.Alpha, alpha);
@@ -53,10 +44,18 @@ public sealed class OverlayWindow : Window, IDisposable
         if (Math.Abs(fontScale - 1.0f) > 0.01f)
             ImGui.SetWindowFontScale(fontScale);
 
-        ImGui.BeginChild("tracked_list", new Vector2(config.OverlayWidth, 0));
+        ImGui.BeginChild("tracked_list", new Vector2(config.OverlayWidth, 0), true);
 
-        var trackedItems = _contentManager.GetGroupedByExpansion()
-            .SelectMany(g => g)
+        var allItems = _contentManager.Items;
+        var trackedCount = 0;
+        foreach (var i in allItems)
+        {
+            var entry = _progressStore.GetOrCreate(i.Id);
+            if (entry.IsTracked && !entry.IsIgnored)
+                trackedCount++;
+        }
+
+        var trackedItems = allItems
             .Where(i =>
             {
                 var entry = _progressStore.GetOrCreate(i.Id);
@@ -64,25 +63,36 @@ public sealed class OverlayWindow : Window, IDisposable
             })
             .OrderBy(i => i.Expansion)
             .ThenBy(i => i.Level)
-            .Take(config.OverlayMaxItems);
+            .Take(config.OverlayMaxItems)
+            .ToList();
+
+        if (trackedItems.Count == 0)
+        {
+            ImGui.Text($"No tracked quests (loaded {allItems.Count} items, {trackedCount} tracked)");
+        }
 
         foreach (var item in trackedItems)
         {
             var entry = _progressStore.GetOrCreate(item.Id);
             var locked = _contentManager.IsLocked(item.Id);
-            var statusIcon = GetStatusIcon(entry, locked);
             var color = GetStatusColor(entry.Status, locked);
 
             ImGui.PushStyleColor(ImGuiCol.Text, color);
-            ImGui.Text($"{statusIcon} {Truncate(item.Name, 30)}  {item.Expansion} Lv{item.Level}");
+            ImGui.Text($"{Truncate(item.Name, 30)}  {MainWindowFilterLogic.GetExpansionLabel(item.Expansion)} Lv{item.Level}");
             ImGui.PopStyleColor();
 
             if (ImGui.IsItemHovered())
             {
                 ImGui.BeginTooltip();
                 ImGui.Text(item.Name);
-                ImGui.Text($"Category: {item.Category}");
-                ImGui.Text($"Status: {entry.Status}");
+                ImGui.Text(MainWindowFilterLogic.GetCategoryLabel(item.Category));
+                var statusLabel = entry.Status switch
+                {
+                    ItemStatus.Completed => "\u2713 Completed",
+                    ItemStatus.InProgress => "\u25D0 In progress",
+                    _ => "\u25CB Not started"
+                };
+                ImGui.Text(statusLabel);
                 if (locked)
                 {
                     ImGui.TextColored(new Vector4(1, 0.5f, 0.5f, 1), "Locked");
@@ -90,7 +100,13 @@ public sealed class OverlayWindow : Window, IDisposable
                     foreach (var p in prereqs)
                     {
                         var pEntry = _progressStore.GetOrCreate(p.Id);
-                        ImGui.Text($"  Requires: {p.Name} [{pEntry.Status}]");
+                        var pStatus = pEntry.Status switch
+                        {
+                            ItemStatus.Completed => "\u2713 Completed",
+                            ItemStatus.InProgress => "\u25D0 In progress",
+                            _ => "\u25CB Not started"
+                        };
+                        ImGui.Text($"  {pStatus} {p.Name}");
                     }
                 }
                 ImGui.EndTooltip();
@@ -98,10 +114,13 @@ public sealed class OverlayWindow : Window, IDisposable
 
             if (ImGui.BeginPopupContextItem($"overlay_ctx_{item.Id}"))
             {
-                var canFlag = item.LocationTerritoryId.HasValue && item.LocationTerritoryId != 0;
+                var quests = _contentManager.GetUnlockQuests(item.Id);
+                var flagTarget = _mapFlagHelper.GetFlagTarget(item, quests, id => _progressStore.GetOrCreate(id).Status);
+                var canFlag = (flagTarget.LocationTerritoryId.HasValue && flagTarget.LocationTerritoryId != 0) ||
+                               (flagTarget.LocationMapX.HasValue && !string.IsNullOrEmpty(flagTarget.LocationTerritoryName));
                 if (!canFlag) ImGui.BeginDisabled();
                 if (ImGui.MenuItem("Flag on Map"))
-                    _mapFlagHelper.PlaceFlag(item);
+                    _mapFlagHelper.PlaceFlag(flagTarget);
                 if (!canFlag) ImGui.EndDisabled();
                 if (ImGui.MenuItem("Untrack"))
                 {
@@ -130,17 +149,6 @@ public sealed class OverlayWindow : Window, IDisposable
     private static string Truncate(string value, int maxLength)
     {
         return value.Length <= maxLength ? value : value[..(maxLength - 3)] + "...";
-    }
-
-    private static string GetStatusIcon(ProgressEntry entry, bool locked)
-    {
-        if (locked) return "[!]";
-        return entry.Status switch
-        {
-            ItemStatus.Completed => "[\u2713]",
-            ItemStatus.InProgress => "[~]",
-            _ => "[ ]"
-        };
     }
 
     private static Vector4 GetStatusColor(ItemStatus status, bool locked)

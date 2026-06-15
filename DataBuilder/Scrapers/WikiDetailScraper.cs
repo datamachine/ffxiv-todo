@@ -23,20 +23,27 @@ public sealed class WikiDetailScraper
         _http = http;
     }
 
-    public async Task<List<DetailItem>> ScrapeDetailsAsync(List<CategoryItem> categoryItems)
+    public async Task<List<DetailItem>> ScrapeDetailsAsync(List<CategoryItem> categoryItems, int concurrency = 10)
     {
         if (_http == null) throw new InvalidOperationException("HttpClient not configured");
-
         var results = new List<DetailItem>();
+        var semaphore = new SemaphoreSlim(concurrency);
+        var tasks = categoryItems.Select(catItem => ScrapeOneAsync(_http!, catItem, results, semaphore));
+        await Task.WhenAll(tasks);
+        return results;
+    }
 
-        foreach (var catItem in categoryItems)
+    private async Task ScrapeOneAsync(HttpClient http, CategoryItem catItem, List<DetailItem> results, SemaphoreSlim semaphore)
+    {
+        await semaphore.WaitAsync();
+        try
         {
-            var slug = System.Web.HttpUtility.UrlEncode(catItem.Name.Replace(' ', '_'));
+            var slug = catItem.Name.Replace(' ', '_');
             var url = $"{WikiBase}/wiki/{slug}";
 
             try
             {
-                var html = await _http.GetStringAsync(url);
+                var html = await http.GetStringAsync(url);
                 var doc = new HtmlDocument();
                 doc.LoadHtml(html);
 
@@ -45,63 +52,99 @@ public sealed class WikiDetailScraper
                 detail.Category = catItem.Category;
                 detail.Expansion = catItem.Expansion;
 
-                results.Add(detail);
+                lock (results) { results.Add(detail); }
             }
             catch (HttpRequestException ex)
             {
                 Console.Error.WriteLine($"WARN: Failed to fetch {url}: {ex.Message}");
-                results.Add(new DetailItem
+                lock (results)
                 {
-                    Name = catItem.Name,
-                    Category = catItem.Category,
-                    Expansion = catItem.Expansion,
-                    WikiUrl = url
-                });
+                    results.Add(new DetailItem
+                    {
+                        Name = catItem.Name,
+                        Category = catItem.Category,
+                        Expansion = catItem.Expansion,
+                        WikiUrl = url
+                    });
+                }
             }
-
-            await Task.Delay(1000);
         }
-
-        return results;
+        finally
+        {
+            semaphore.Release();
+        }
     }
 
     public DetailItem ParseDetailPage(HtmlNode contentNode, string wikiUrl)
     {
         var item = new DetailItem { WikiUrl = wikiUrl };
 
-        var infobox = contentNode.SelectSingleNode(".//table[contains(@class,'infobox')]");
+        // Modern infobox: <div class="infobox-n quest"> <div class="wrapper"> <dl> <dt>...</dt><dd>...</dd> </dl> </div>
+        var wrapper = contentNode.SelectSingleNode(".//div[contains(@class,'infobox-n')]//div[contains(@class,'wrapper')]//dl");
 
-        if (infobox != null)
+        if (wrapper == null)
         {
-            foreach (var row in infobox.SelectNodes(".//tr"))
-            {
-                var th = row.SelectSingleNode(".//th");
-                var td = row.SelectSingleNode(".//td");
-                if (th == null || td == null) continue;
-
-                var label = th.InnerText.Trim().ToLowerInvariant();
-                var value = td.InnerText.Trim();
-
-                switch (label)
-                {
-                    case "level":
-                        if (uint.TryParse(value, out var level))
-                            item.Level = level;
-                        break;
-                    case "location":
-                        ParseLocation(value, item);
-                        break;
-                    case "requirements":
-                        ParsePrerequisites(td, item);
-                        break;
-                    case "links":
-                        ParseLinks(td, item);
-                        break;
-                }
-            }
+            // Fallback: old table-style infobox
+            var oldInfobox = contentNode.SelectSingleNode(".//table[contains(@class,'infobox')]");
+            if (oldInfobox != null)
+                ParseTableInfobox(oldInfobox, item);
+        }
+        else
+        {
+            ParseDlInfobox(wrapper, item);
         }
 
         return item;
+    }
+
+    private void ParseTableInfobox(HtmlNode table, DetailItem item)
+    {
+        foreach (var row in table.SelectNodes(".//tr"))
+        {
+            var th = row.SelectSingleNode(".//th");
+            var td = row.SelectSingleNode(".//td");
+            if (th == null || td == null) continue;
+
+            var label = th.InnerText.Trim().ToLowerInvariant();
+            ProcessInfoboxField(label, td, item);
+        }
+    }
+
+    private void ParseDlInfobox(HtmlNode dl, DetailItem item)
+    {
+        var currentDt = dl.SelectSingleNode(".//dt");
+        while (currentDt != null)
+        {
+            var dd = currentDt.SelectSingleNode("following-sibling::dd[1]");
+            if (dd == null) break;
+
+            var label = currentDt.InnerText.Trim().ToLowerInvariant();
+            ProcessInfoboxField(label, dd, item);
+
+            currentDt = dd.SelectSingleNode("following-sibling::dt[1]");
+        }
+    }
+
+    private void ProcessInfoboxField(string label, HtmlNode valueNode, DetailItem item)
+    {
+        var value = valueNode.InnerText.Trim();
+
+        switch (label)
+        {
+            case "level":
+                if (uint.TryParse(value, out var level))
+                    item.Level = level;
+                break;
+            case "location":
+                ParseLocation(value, item);
+                break;
+            case "requirements":
+                ParsePrerequisites(valueNode, item);
+                break;
+            case "links":
+                ParseLinks(valueNode, item);
+                break;
+        }
     }
 
     private void ParseLocation(string raw, DetailItem item)
@@ -150,6 +193,10 @@ public sealed class WikiDetailScraper
         }
     }
 
+    private static readonly Regex GtQuestIdRegex = new(
+        @"/#quest/(\d+)",
+        RegexOptions.Compiled);
+
     private void ParseLinks(HtmlNode td, DetailItem item)
     {
         var links = td.SelectNodes(".//a[contains(@class,'external')]");
@@ -159,7 +206,17 @@ public sealed class WikiDetailScraper
         {
             var href = link.GetAttributeValue("href", "");
             if (href.Contains("lodestone") && href.Contains("/quest/"))
+            {
                 item.EdbUrl = href;
+            }
+
+            var gtMatch = GtQuestIdRegex.Match(href);
+            if (gtMatch.Success && uint.TryParse(gtMatch.Groups[1].Value, out var gtId))
+            {
+                // Use GT ID as fallback QuestId (XIVAPI can refine it later)
+                if (item.QuestId == null)
+                    item.QuestId = gtId;
+            }
         }
     }
 }

@@ -10,6 +10,9 @@ public sealed class QuestChainOverride
 
     [JsonPropertyName("questIds")]
     public List<uint> QuestIds { get; set; } = new();
+
+    [JsonPropertyName("explicitChain")]
+    public bool ExplicitChain { get; set; }
 }
 
 public sealed class QuestChainOverridesFile

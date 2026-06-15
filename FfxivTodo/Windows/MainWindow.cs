@@ -29,7 +29,7 @@ public sealed class MainWindow : Window, IDisposable
     private bool _firstDraw = true;
     private bool _filterDirty;
     private readonly string _filterFilePath;
-    private readonly HashSet<uint> _expandedChains = [];
+    
 
     public MainWindow(
         ContentManager contentManager,
@@ -182,6 +182,12 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.SameLine();
         if (ImGui.Button("Clear filters"))
             ClearFilters();
+        ImGui.SameLine();
+        var refreshLabel = "Re-scan Progress";
+        var refreshWidth = ImGui.CalcTextSize(refreshLabel).X + ImGui.GetStyle().FramePadding.X * 2;
+        ImGui.SetCursorPosX(ImGui.GetWindowContentRegionMax().X - refreshWidth);
+        if (ImGui.Button(refreshLabel))
+            _progressScanner.ScanAll(_contentManager.Items);
     }
 
     private void DrawMultiSelectFilter<T>(
@@ -261,6 +267,9 @@ public sealed class MainWindow : Window, IDisposable
 
             foreach (var catGroup in categories)
             {
+                if (catGroup.Key == ContentCategory.BlueUnlock)
+                    continue;
+
                 var filteredItems = FilterItems(catGroup);
                 var items = filteredItems.ToList();
 
@@ -346,7 +355,7 @@ public sealed class MainWindow : Window, IDisposable
         {
             ImGui.BeginTooltip();
             ImGui.Text($"Lv.{item.Level}  {item.Name}");
-            ImGui.Text($"Category: {item.Category}");
+            ImGui.Text(MainWindowFilterLogic.GetCategoryLabel(item.Category));
             if (locked)
             {
                 ImGui.TextColored(new Vector4(1, 0.5f, 0.5f, 1), "LOCKED - prerequisites not met");
@@ -354,7 +363,13 @@ public sealed class MainWindow : Window, IDisposable
                 foreach (var p in prereqs)
                 {
                     var pEntry = _progressStore.GetOrCreate(p.Id);
-                    ImGui.Text($"  Requires: {p.Name} [{pEntry.Status}]");
+                    var pStatus = pEntry.Status switch
+                    {
+                        ItemStatus.Completed => "\u2713 Completed",
+                        ItemStatus.InProgress => "\u25D0 In progress",
+                        _ => "\u25CB Not started"
+                    };
+                    ImGui.Text($"  {pStatus} {p.Name}");
                 }
             }
             ImGui.EndTooltip();
@@ -364,55 +379,6 @@ public sealed class MainWindow : Window, IDisposable
         {
             DrawContextMenu(item);
             ImGui.EndPopup();
-        }
-
-        if (item.UnlockQuestIds.Length > 0)
-        {
-            var quests = _contentManager.GetUnlockQuests(item.Id);
-            var nextQuest = quests.FirstOrDefault(q =>
-            {
-                var qe = _progressStore.GetOrCreate(q.Id);
-                return qe.Status != ItemStatus.Completed;
-            });
-
-            if (nextQuest != null)
-            {
-                ImGui.SameLine();
-                ImGui.TextColored(new Vector4(0.6f, 0.8f, 1.0f, 1), $"→ {nextQuest.Name}");
-            }
-
-            var isExpanded = _expandedChains.Contains(item.Id);
-            if (isExpanded)
-                ImGui.SetNextItemOpen(true);
-            if (ImGui.TreeNodeEx($"##chain_{item.Id}", ImGuiTreeNodeFlags.None))
-            {
-                _expandedChains.Add(item.Id);
-
-                foreach (var quest in quests)
-                {
-                    var qe = _progressStore.GetOrCreate(quest.Id);
-                    var qLocked = _contentManager.IsLocked(quest.Id);
-                    var qColor = GetStatusColor(qe.Status, qLocked);
-
-                    ImGui.PushID((int)quest.Id);
-                    ImGui.Indent();
-
-                    ImGui.PushStyleColor(ImGuiCol.Text, qColor);
-                    var qSelected = _selectedItemId == quest.Id;
-                    if (ImGui.Selectable($"{quest.Name}##qname", qSelected))
-                        _selectedItemId = quest.Id;
-                    ImGui.PopStyleColor();
-
-                    ImGui.Unindent();
-                    ImGui.PopID();
-                }
-
-                ImGui.TreePop();
-            }
-            else
-            {
-                _expandedChains.Remove(item.Id);
-            }
         }
     }
 
@@ -437,7 +403,10 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.Separator();
 
         if (ImGui.MenuItem("Flag on Map"))
-            _mapFlagHelper.PlaceFlag(item);
+        {
+            var quests = _contentManager.GetUnlockQuests(item.Id);
+            _mapFlagHelper.PlaceFlag(_mapFlagHelper.GetFlagTarget(item, quests, id => _progressStore.GetOrCreate(id).Status));
+        }
 
         if (!string.IsNullOrEmpty(item.WikiUrl) && ImGui.MenuItem("Open Wiki"))
             Process.Start(new ProcessStartInfo(item.WikiUrl) { UseShellExecute = true });
@@ -483,10 +452,15 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.Text($"{item.Name}");
         ImGui.Separator();
 
-        ImGui.Text($"Level: {item.Level}");
-        ImGui.Text($"Expansion: {item.Expansion}");
-        ImGui.Text($"Category: {item.Category}");
-        ImGui.Text($"Status: {entry.Status}");
+        var statusLabel = entry.Status switch
+        {
+            ItemStatus.NotStarted => "Not started",
+            ItemStatus.InProgress => "In progress",
+            ItemStatus.Completed => "Completed",
+            _ => entry.Status.ToString()
+        };
+        ImGui.Text($"Level: {item.Level}  |  {MainWindowFilterLogic.GetExpansionLabel(item.Expansion)}");
+        ImGui.Text($"{MainWindowFilterLogic.GetCategoryLabel(item.Category)}  |  {statusLabel}");
         if (entry.IsManual)
             ImGui.TextColored(new Vector4(0.7f, 0.7f, 1.0f, 1), "(manual override)");
 
@@ -508,11 +482,35 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.Separator();
             ImGui.Text("Unlock Quest Chain:");
             var quests = _contentManager.GetUnlockQuests(item.Id);
-            foreach (var quest in quests)
+            var groups = quests
+                .Select(q => (Quest: q, Entry: _progressStore.GetOrCreate(q.Id)))
+                .GroupBy(x => x.Entry.Status)
+                .OrderBy(g => g.Key == ItemStatus.Completed ? 0 :
+                               g.Key == ItemStatus.InProgress ? 1 : 2);
+
+            foreach (var group in groups)
             {
-                var qe = _progressStore.GetOrCreate(quest.Id);
-                var icon = GetStatusIcon(qe, _contentManager.IsLocked(quest.Id));
-                ImGui.Text($"  {icon} {quest.Name} (Lv.{quest.Level})");
+                var label = group.Key switch
+                {
+                    ItemStatus.Completed => "Completed",
+                    ItemStatus.InProgress => "In Progress",
+                    _ => "Not Started"
+                };
+                var labelColor = group.Key switch
+                {
+                    ItemStatus.Completed => new Vector4(0.3f, 1.0f, 0.3f, 1),
+                    ItemStatus.InProgress => new Vector4(1.0f, 1.0f, 0.3f, 1),
+                    _ => new Vector4(0.6f, 0.6f, 0.6f, 1)
+                };
+
+                ImGui.TextColored(labelColor, $"  {label}:");
+                foreach (var (quest, qe) in group)
+                {
+                    var qLocked = _contentManager.IsLocked(quest.Id);
+                    var icon = GetStatusIcon(qe, qLocked);
+                    var color = GetStatusColor(qe.Status, qLocked);
+                    ImGui.TextColored(color, $"    {icon} {quest.Name} (Lv.{quest.Level})");
+                }
             }
         }
 
@@ -532,12 +530,14 @@ public sealed class MainWindow : Window, IDisposable
             _progressStore.Save();
         }
 
-        var canFlag = (item.LocationTerritoryId.HasValue && item.LocationTerritoryId.Value != 0) ||
-                       (item.LocationMapX.HasValue && !string.IsNullOrEmpty(item.LocationTerritoryName));
+        var chainQuests = _contentManager.GetUnlockQuests(item.Id);
+        var flagTarget = _mapFlagHelper.GetFlagTarget(item, chainQuests, id => _progressStore.GetOrCreate(id).Status);
+        var canFlag = (flagTarget.LocationTerritoryId.HasValue && flagTarget.LocationTerritoryId.Value != 0) ||
+                       (flagTarget.LocationMapX.HasValue && !string.IsNullOrEmpty(flagTarget.LocationTerritoryName));
         if (!canFlag)
             ImGui.BeginDisabled();
         if (ImGui.Button("Flag on Map"))
-            _mapFlagHelper.PlaceFlag(item);
+            _mapFlagHelper.PlaceFlag(flagTarget);
         if (!canFlag)
             ImGui.EndDisabled();
 
@@ -574,12 +574,12 @@ public sealed class MainWindow : Window, IDisposable
 
     private static string GetStatusIcon(ProgressEntry entry, bool locked)
     {
-        if (locked) return "[!]";
+        if (locked) return "\u2717";
         return entry.Status switch
         {
-            ItemStatus.Completed => "[\u2713]",
-            ItemStatus.InProgress => "[~]",
-            _ => "[ ]"
+            ItemStatus.Completed => "\u2713",
+            ItemStatus.InProgress => "\u25D0",
+            _ => "\u25CB"
         };
     }
 

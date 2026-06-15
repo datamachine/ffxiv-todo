@@ -23,7 +23,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
-    public Configuration Configuration { get; init; }
+    public static Configuration? Configuration { get; private set; }
 
     public readonly WindowSystem WindowSystem = new("FfxivTodo");
 
@@ -46,12 +46,14 @@ public sealed class Plugin : IDalamudPlugin
         _progressScanner.SetDebounce(Configuration.ScanDebounceMs);
 
         _contentManager.LoadContent();
+        Log.Information($"Loaded {_contentManager.Items.Count} content items (data version {_contentManager.DataVersion})");
         _progressStore.Load();
         _contentManager.SetProgress(_progressStore.GetAll());
 
-        _mainWindow = new MainWindow(_contentManager, _progressStore, _progressScanner, _mapFlagHelper);
         _overlayWindow = new OverlayWindow(_contentManager, _progressStore, _mapFlagHelper);
-        _overlayWindow.IsOpen = false;
+        _overlayWindow.IsOpen = Configuration.OverlayVisible;
+
+        _mainWindow = new MainWindow(_contentManager, _progressStore, _progressScanner, _mapFlagHelper, _overlayWindow, PluginInterface.ConfigDirectory.FullName);
 
         WindowSystem.AddWindow(_mainWindow);
         WindowSystem.AddWindow(_overlayWindow);
@@ -60,9 +62,14 @@ public sealed class Plugin : IDalamudPlugin
         {
             HelpMessage = "Toggle FFXIV Todo windows"
         });
+        CommandManager.AddHandler("/todotracker", new CommandInfo(OnCommand)
+        {
+            HelpMessage = "Toggle FFXIV Todo overlay"
+        });
 
         PluginInterface.UiBuilder.Draw += DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
+        PluginInterface.UiBuilder.OpenMainUi += DrawConfigUI;
         ClientState.Login += OnLogin;
         ClientState.TerritoryChanged += OnTerritoryChanged;
     }
@@ -70,8 +77,10 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         CommandManager.RemoveHandler("/todo");
+        CommandManager.RemoveHandler("/todotracker");
         PluginInterface.UiBuilder.Draw -= DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;
+        PluginInterface.UiBuilder.OpenMainUi -= DrawConfigUI;
         ClientState.Login -= OnLogin;
         ClientState.TerritoryChanged -= OnTerritoryChanged;
         _progressScanner.Dispose();
@@ -81,12 +90,20 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnCommand(string command, string args)
     {
-        if (args == "overlay")
+        if (command == "/todotracker")
+        {
             _overlayWindow.IsOpen = !_overlayWindow.IsOpen;
-        else if (args == "refresh")
+            Configuration!.OverlayVisible = _overlayWindow.IsOpen;
+            PluginInterface.SavePluginConfig(Configuration);
+            return;
+        }
+
+        if (args == "refresh")
             OnRefresh();
         else
             _mainWindow.IsOpen = !_mainWindow.IsOpen;
+
+        Log.Information($"/todo: args='{args}', mainWindow.IsOpen={_mainWindow.IsOpen}, items={_contentManager.Items.Count}");
     }
 
     private void DrawUI() => WindowSystem.Draw();

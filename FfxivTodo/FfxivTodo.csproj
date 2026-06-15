@@ -24,4 +24,8 @@
     <EmbeddedResource Include="Data\content.json" />
   </ItemGroup>
 
+  <Target Name="CopyToLegacyOutput" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(MSBuildProjectDirectory)\bin\Debug\$(TargetFileName)" SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

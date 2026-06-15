@@ -22,7 +22,9 @@ public static class ContentJsonFormatter
         ["ChaoticRaid"] = 13, ["DeepDungeon"] = 14,
         ["RelicWeapon"] = 15, ["IslandSanctuary"] = 16,
         ["IshgardianRestoration"] = 17, ["FauxHollows"] = 18,
-        ["MaskedCarnivale"] = 19
+        ["MaskedCarnivale"] = 19,
+        ["Dungeon"] = 20, ["PvP"] = 21, ["GoldSaucer"] = 22,
+        ["TreasureHunt"] = 23, ["Chocobo"] = 24
     };
 
     private static readonly HashSet<string> KnownJunkNames = new(StringComparer.OrdinalIgnoreCase)

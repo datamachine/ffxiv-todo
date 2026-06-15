@@ -36,7 +36,12 @@ public enum ContentCategory
     IslandSanctuary,
     IshgardianRestoration,
     FauxHollows,
-    MaskedCarnivale
+    MaskedCarnivale,
+    Dungeon,
+    PvP,
+    GoldSaucer,
+    TreasureHunt,
+    Chocobo
 }
 
 [JsonConverter(typeof(StringEnumConverter))]

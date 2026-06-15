@@ -49,6 +49,11 @@ public static class MainWindowFilterLogic
         ContentCategory.IshgardianRestoration => "Ishgardian Restoration",
         ContentCategory.FauxHollows => "Faux Hollows",
         ContentCategory.MaskedCarnivale => "The Masked Carnivale",
+        ContentCategory.Dungeon => "Dungeons",
+        ContentCategory.PvP => "PvP",
+        ContentCategory.GoldSaucer => "The Gold Saucer",
+        ContentCategory.TreasureHunt => "Treasure hunts",
+        ContentCategory.Chocobo => "Companion chocobo",
         _ => category.ToString()
     };
 
