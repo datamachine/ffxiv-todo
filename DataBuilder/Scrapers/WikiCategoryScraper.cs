@@ -541,6 +541,73 @@ public sealed class WikiCategoryScraper
         return items;
     }
 
+    public List<CategoryItem> ParseVariantDungeonsPage(HtmlNode contentNode)
+    {
+        var items = new List<CategoryItem>();
+        var inVariantSection = false;
+        var inCriterionSection = false;
+
+        var headings = contentNode.SelectNodes(".//h2|.//h3");
+        if (headings == null) return items;
+
+        foreach (var heading in headings)
+        {
+            var sectionId = GetHeadingId(heading);
+            if (string.IsNullOrEmpty(sectionId)) continue;
+
+            if (sectionId == "Variant_Dungeons")
+            {
+                inVariantSection = true;
+                inCriterionSection = false;
+                continue;
+            }
+            if (sectionId == "Criterion_Dungeons")
+            {
+                inVariantSection = false;
+                inCriterionSection = true;
+                continue;
+            }
+            if (sectionId.Contains("Advanced") || sectionId.Contains("Savage"))
+            {
+                inVariantSection = false;
+                inCriterionSection = false;
+                continue;
+            }
+
+            if (!inVariantSection && !inCriterionSection) continue;
+
+            if (sectionId == "Available_Variant_Dungeons" || sectionId == "Available_Criterion_Dungeons")
+            {
+                var table = FindNextTable(heading);
+                if (table == null) continue;
+
+                var rows = table.SelectNodes(".//tr");
+                if (rows == null) continue;
+
+                foreach (var row in rows.Skip(1))
+                {
+                    var cells = row.SelectNodes(".//td");
+                    if (cells == null || cells.Count < 1) continue;
+                    var link = cells[0].SelectSingleNode(".//a");
+                    if (link == null) continue;
+                    var name = HttpUtility.HtmlDecode(link.InnerText.Trim());
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+
+                    var exp = name.Contains("Merchant") ? "DT" : "EW";
+
+                    items.Add(new CategoryItem
+                    {
+                        Name = name,
+                        Category = "VariantDungeon",
+                        Expansion = exp
+                    });
+                }
+            }
+        }
+
+        return items;
+    }
+
     public async Task<List<CategoryItem>> ScrapeCustomDeliveriesAsync()
     {
         var items = new List<CategoryItem>();
