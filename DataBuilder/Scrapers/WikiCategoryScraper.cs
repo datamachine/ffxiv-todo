@@ -608,6 +608,54 @@ public sealed class WikiCategoryScraper
         return items;
     }
 
+    public List<CategoryItem> ParseIslandSanctuaryPage(HtmlNode contentNode)
+    {
+        var items = new List<CategoryItem>();
+
+        var headings = contentNode.SelectNodes(".//h2|.//h3");
+        if (headings != null)
+        {
+            foreach (var heading in headings)
+            {
+                var sectionId = GetHeadingId(heading);
+                if (sectionId != "Questline") continue;
+
+                var table = FindNextTable(heading);
+                if (table == null) continue;
+
+                var rows = table.SelectNodes(".//tr");
+                if (rows == null) continue;
+
+                foreach (var row in rows.Skip(1))
+                {
+                    var cells = row.SelectNodes(".//td");
+                    if (cells == null || cells.Count < 1) continue;
+                    var link = cells[0].SelectSingleNode(".//a");
+                    if (link == null) continue;
+                    var name = HttpUtility.HtmlDecode(link.InnerText.Trim());
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        items.Add(new CategoryItem
+                        {
+                            Name = name,
+                            Category = "BlueUnlock",
+                            Expansion = "EW"
+                        });
+                    }
+                }
+            }
+        }
+
+        items.Add(new CategoryItem
+        {
+            Name = "Island Sanctuary",
+            Category = "IslandSanctuary",
+            Expansion = "EW"
+        });
+
+        return items;
+    }
+
     public async Task<List<CategoryItem>> ScrapeCustomDeliveriesAsync()
     {
         var items = new List<CategoryItem>();
