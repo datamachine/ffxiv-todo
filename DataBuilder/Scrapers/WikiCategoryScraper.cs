@@ -507,7 +507,7 @@ public sealed class WikiCategoryScraper
             if (string.IsNullOrEmpty(sectionId)) continue;
 
             // Try as expansion heading first (h2)
-            var cleaned = Regex.Replace(sectionId.Replace("_", " "), @"^\d+\s+", "");
+            var cleaned = Regex.Replace(Regex.Replace(sectionId, @"_\d+$", "").Replace("_", " "), @"^\d+\s+", "");
             var exp = ParseExpansionFromHeading(cleaned);
             if (exp != null)
             {
@@ -515,9 +515,12 @@ public sealed class WikiCategoryScraper
                 continue;
             }
 
+            // Strip MediaWiki duplicate heading suffix (_2, _3, etc.)
+            var cleanSectionId = Regex.Replace(sectionId, @"_\d+$", "");
+
             // Determine role name from h3 heading
-            var role = sectionId.Equals("Master_Role_Quests", StringComparison.OrdinalIgnoreCase)
-                ? "Master" : sectionId.Replace("_", " ");
+            var role = cleanSectionId.Equals("Master_Role_Quests", StringComparison.OrdinalIgnoreCase)
+                ? "Master" : cleanSectionId.Replace("_", " ");
 
             // Skip non-role headings (Contents, Trivia, References, etc.)
             if (!KnownRoleNames.Contains(role)) continue;
