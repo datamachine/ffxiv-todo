@@ -49,5 +49,6 @@ public enum ItemStatus
 {
     NotStarted,
     InProgress,
-    Completed
+    Completed,
+    Unlocked
 }

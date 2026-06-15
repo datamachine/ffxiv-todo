@@ -30,7 +30,7 @@ public sealed class ProgressStoreTests
             store.SetStatus(10, ItemStatus.Completed, false, contentItems);
 
             var parentEntry = store.GetOrCreate(1);
-            Assert.Equal(ItemStatus.Completed, parentEntry.Status);
+            Assert.Equal(ItemStatus.Unlocked, parentEntry.Status);
         }
         finally
         {

@@ -83,7 +83,7 @@ public sealed class ProgressStore
                 var chainQuest = allItems.FirstOrDefault(i => i.QuestId == qid);
                 if (chainQuest == null) return false;
                 var chainEntry = GetOrCreate(chainQuest.Id);
-                return chainEntry.Status == ItemStatus.Completed;
+                return chainEntry.Status is ItemStatus.Completed or ItemStatus.Unlocked;
             });
 
             if (!allChainQuestsCompleted)
@@ -91,7 +91,7 @@ public sealed class ProgressStore
 
             var parentEntry = GetOrCreate(parent.Id);
             if (!parentEntry.IsManual)
-                parentEntry.Status = ItemStatus.Completed;
+                parentEntry.Status = ItemStatus.Unlocked;
         }
     }
 

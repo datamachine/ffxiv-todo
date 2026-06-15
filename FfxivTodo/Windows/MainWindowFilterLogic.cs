@@ -10,6 +10,7 @@ public enum FilterState
     NotStarted,
     InProgress,
     Completed,
+    Unlocked,
     Locked,
     Ignored
 }
@@ -61,6 +62,7 @@ public static class MainWindowFilterLogic
     {
         FilterState.NotStarted => "Not started",
         FilterState.InProgress => "In progress",
+        FilterState.Unlocked => "Unlocked",
         _ => state.ToString()
     };
 
@@ -72,6 +74,7 @@ public static class MainWindowFilterLogic
         return entry.Status switch
         {
             ItemStatus.Completed => FilterState.Completed,
+            ItemStatus.Unlocked => FilterState.Unlocked,
             ItemStatus.InProgress => FilterState.InProgress,
             _ => FilterState.NotStarted
         };

@@ -89,6 +89,7 @@ public sealed class OverlayWindow : Window, IDisposable
                 var statusLabel = entry.Status switch
                 {
                     ItemStatus.Completed => "\u2713 Completed",
+                    ItemStatus.Unlocked => "\u25C9 Unlocked",
                     ItemStatus.InProgress => "\u25D0 In progress",
                     _ => "\u25CB Not started"
                 };
@@ -103,6 +104,7 @@ public sealed class OverlayWindow : Window, IDisposable
                         var pStatus = pEntry.Status switch
                         {
                             ItemStatus.Completed => "\u2713 Completed",
+                            ItemStatus.Unlocked => "\u25C9 Unlocked",
                             ItemStatus.InProgress => "\u25D0 In progress",
                             _ => "\u25CB Not started"
                         };

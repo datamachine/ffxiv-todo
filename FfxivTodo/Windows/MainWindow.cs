@@ -226,7 +226,7 @@ public sealed class MainWindow : Window, IDisposable
 
     private void DrawStateChips()
     {
-        var states = new[] { FilterState.NotStarted, FilterState.InProgress, FilterState.Completed, FilterState.Locked, FilterState.Ignored };
+        var states = new[] { FilterState.NotStarted, FilterState.InProgress, FilterState.Unlocked, FilterState.Completed, FilterState.Locked, FilterState.Ignored };
 
         foreach (var state in states)
         {
@@ -366,6 +366,7 @@ public sealed class MainWindow : Window, IDisposable
                     var pStatus = pEntry.Status switch
                     {
                         ItemStatus.Completed => "\u2713 Completed",
+                        ItemStatus.Unlocked => "\u25C9 Unlocked",
                         ItemStatus.InProgress => "\u25D0 In progress",
                         _ => "\u25CB Not started"
                     };
@@ -456,6 +457,7 @@ public sealed class MainWindow : Window, IDisposable
         {
             ItemStatus.NotStarted => "Not started",
             ItemStatus.InProgress => "In progress",
+            ItemStatus.Unlocked => "Unlocked",
             ItemStatus.Completed => "Completed",
             _ => entry.Status.ToString()
         };
@@ -486,19 +488,22 @@ public sealed class MainWindow : Window, IDisposable
                 .Select(q => (Quest: q, Entry: _progressStore.GetOrCreate(q.Id)))
                 .GroupBy(x => x.Entry.Status)
                 .OrderBy(g => g.Key == ItemStatus.Completed ? 0 :
-                               g.Key == ItemStatus.InProgress ? 1 : 2);
+                               g.Key == ItemStatus.Unlocked ? 1 :
+                               g.Key == ItemStatus.InProgress ? 2 : 3);
 
             foreach (var group in groups)
             {
                 var label = group.Key switch
                 {
                     ItemStatus.Completed => "Completed",
+                    ItemStatus.Unlocked => "Unlocked",
                     ItemStatus.InProgress => "In Progress",
                     _ => "Not Started"
                 };
                 var labelColor = group.Key switch
                 {
                     ItemStatus.Completed => new Vector4(0.3f, 1.0f, 0.3f, 1),
+                    ItemStatus.Unlocked => new Vector4(0.3f, 0.8f, 1.0f, 1),
                     ItemStatus.InProgress => new Vector4(1.0f, 1.0f, 0.3f, 1),
                     _ => new Vector4(0.6f, 0.6f, 0.6f, 1)
                 };
@@ -578,6 +583,7 @@ public sealed class MainWindow : Window, IDisposable
         return entry.Status switch
         {
             ItemStatus.Completed => "\u2713",
+            ItemStatus.Unlocked => "\u25C9",
             ItemStatus.InProgress => "\u25D0",
             _ => "\u25CB"
         };
@@ -589,6 +595,7 @@ public sealed class MainWindow : Window, IDisposable
         return status switch
         {
             ItemStatus.Completed => new Vector4(0.3f, 1.0f, 0.3f, 1),
+            ItemStatus.Unlocked => new Vector4(0.3f, 0.8f, 1.0f, 1),
             ItemStatus.InProgress => new Vector4(1.0f, 1.0f, 0.3f, 1),
             _ => new Vector4(1.0f, 1.0f, 1.0f, 1)
         };

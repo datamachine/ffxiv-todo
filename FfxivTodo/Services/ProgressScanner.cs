@@ -95,7 +95,7 @@ public sealed class ProgressScanner : IDisposable
                 continue;
 
             if (allComplete)
-                parentEntry.Status = ItemStatus.Completed;
+                parentEntry.Status = ItemStatus.Unlocked;
             else if (hasInProgress)
                 parentEntry.Status = ItemStatus.InProgress;
             else
