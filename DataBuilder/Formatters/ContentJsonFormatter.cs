@@ -155,7 +155,14 @@ public static class ContentJsonFormatter
 
             // Fallback: any item without an expansion will crash the plugin's enum deserialization
             if (string.IsNullOrWhiteSpace(item.Expansion))
-                item.Expansion = "ARR";
+            {
+                if (item.Name == "Cosmic Exploration Sidequests")
+                    item.Expansion = "DT";
+                else if (item.Name == "Delivery Moogle")
+                    item.Expansion = "ARR";
+                else
+                    Console.Error.WriteLine($"  WARN: Missing expansion for '{item.Name}' ({item.Category}) — fix the scraper");
+            }
         }
 
         // Infer level from expansion for duty categories where all items use the expansion cap
