@@ -17,18 +17,47 @@ public static class ContentJsonFormatter
     {
         ["SideQuest"] = 0, ["BlueUnlock"] = 1, ["JobQuest"] = 2, ["RoleQuest"] = 3,
         ["TrialSeries"] = 4, ["RaidSeries"] = 5, ["AllianceRaid"] = 6,
-        ["BeastTribe"] = 7
+        ["BeastTribe"] = 7, ["CustomDelivery"] = 8, ["SavageRaid"] = 9,
+        ["UltimateRaid"] = 10, ["FieldOperation"] = 11, ["VariantDungeon"] = 12,
+        ["ChaoticRaid"] = 13, ["DeepDungeon"] = 14,
+        ["RelicWeapon"] = 15, ["IslandSanctuary"] = 16,
+        ["IshgardianRestoration"] = 17, ["FauxHollows"] = 18,
+        ["MaskedCarnivale"] = 19
     };
 
     private static readonly HashSet<string> KnownJunkNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "", " ", "patch", "feature quests", "allied society quests achievements",
-        "heavensturn events", "collaboration quests", "cosmic exploration sidequests",
-        "delivery moogle", "la noscea sidequests", "side quests by location",
+        "la noscea sidequests", "side quests by location",
         "side story questlines", "records of unusual endeavors", "seasonal events quests",
         "special quests", "aether current quests", "levequests", "grand company",
         "locations", "glamour and customization", "the hunt",
         "reputation", "vendor", "collectables",
+        "collaboration quests",
+    };
+
+    private static readonly Dictionary<string, string> BeastTribeNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Ring of Ash"] = "Amalj'aa",
+        ["Little Solace"] = "Sylph",
+        ["789th Order Dig"] = "Kobold",
+        ["Novv's Nursery"] = "Sahagin",
+        ["Ehcatl"] = "Ixal",
+        ["Ok' Gundu Nakki"] = "Vanu Vanu",
+        ["Loth ast Vath"] = "Vath",
+        ["Bahrr Lehs"] = "Moogle",
+        ["Tamamizu"] = "Kojin",
+        ["Castellum Velodyna"] = "Ananta",
+        ["Dhoro Iloh"] = "Namazu",
+        ["Lydha Lran"] = "Pixie",
+        ["Watts's Anvil"] = "Qitari",
+        ["Hopl's Stopple"] = "Dwarf",
+        ["Svarna"] = "Arkasodara",
+        ["A-4 Research"] = "Omicron",
+        ["Hoper's Hold"] = "Loporrit",
+        ["Dock Poga"] = "Pelupelu",
+        ["Gok Golma"] = "Mamool Ja",
+        ["Worlar's Echo"] = "Yok Huy",
     };
 
     // Filter items whose name matches known non-quest patterns
@@ -51,6 +80,18 @@ public static class ContentJsonFormatter
         "AllianceRaid", "RaidSeries", "NormalRaid", "Trial", "Dungeon", "GuildOrder", "Guildhest"
     };
 
+    private static readonly Dictionary<string, string> NameCategoryMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Savage"] = "SavageRaid",
+        ["Ultimate"] = "UltimateRaid",
+        ["Castrum Lacus Litore"] = "FieldOperation",
+        ["Delubrum Reginae"] = "FieldOperation",
+        ["The Dalriada"] = "FieldOperation",
+        ["The Baldesion Arsenal"] = "FieldOperation",
+        ["The Forked Tower"] = "VariantDungeon",
+        ["The Cloud of Darkness (Chaotic)"] = "ChaoticRaid",
+    };
+
     private static readonly Dictionary<uint, string> LevelToExpansion = new()
     {
         [50] = "ARR",
@@ -66,8 +107,11 @@ public static class ContentJsonFormatter
         [96] = "DT", [97] = "DT", [98] = "DT", [99] = "DT", [100] = "DT",
     };
 
-    private static string InferExpansion(uint? level, string category, string currentExpansion)
+    private static string InferExpansion(uint? level, string category, string currentExpansion, bool hasQuestId)
     {
+        if (hasQuestId)
+            return currentExpansion;
+
         if (level.HasValue && level.Value > 0
             && LevelToExpansion.TryGetValue(level.Value, out var exp)
             && category is "BlueUnlock" or "SideQuest")
@@ -79,6 +123,22 @@ public static class ContentJsonFormatter
 
     public static FormattedItemsFile Format(List<DetailItem> items)
     {
+        // Assign categories to items with empty category based on name patterns
+        foreach (var item in items)
+        {
+            if (!string.IsNullOrWhiteSpace(item.Category))
+                continue;
+
+            foreach (var (pattern, category) in NameCategoryMap)
+            {
+                if (item.Name.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                {
+                    item.Category = category;
+                    break;
+                }
+            }
+        }
+
         var validItems = items
             .Where(i => !string.IsNullOrWhiteSpace(i.Name))
             .Where(i => !KnownJunkNames.Contains(i.Name.Trim()))
@@ -89,7 +149,7 @@ public static class ContentJsonFormatter
         // Refine expansions based on level where available
         foreach (var item in validItems)
         {
-            item.Expansion = InferExpansion(item.Level, item.Category, item.Expansion);
+            item.Expansion = InferExpansion(item.Level, item.Category, item.Expansion, item.QuestId.HasValue);
         }
 
         // Infer level from expansion for duty categories where all items use the expansion cap
@@ -101,6 +161,13 @@ public static class ContentJsonFormatter
             {
                 item.Level = cap;
             }
+        }
+
+        // Rename BeastTribe items to use society names
+        foreach (var item in validItems)
+        {
+            if (item.Category == "BeastTribe" && BeastTribeNames.TryGetValue(item.Name, out var societyName))
+                item.Name = societyName;
         }
 
         var sorted = validItems
