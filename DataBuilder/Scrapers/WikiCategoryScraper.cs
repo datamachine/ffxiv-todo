@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Web;
 using DataBuilder.Models;
 using HtmlAgilityPack;
@@ -10,16 +11,6 @@ namespace DataBuilder.Scrapers;
 public sealed class WikiCategoryScraper
 {
     private readonly HttpClient _http;
-
-    private static readonly Dictionary<string, string> KnownCategories = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Job_Quests"] = "JobQuest",
-        ["Raids"] = null!, // Handled specially — contains multiple subcategories
-        ["Allied_Society_Quests"] = "BeastTribe",
-        ["Side_Quests"] = "SideQuest",
-        ["Feature_Quests"] = null!, // Handled specially — contains BlueUnlock+
-        ["Custom_Deliveries"] = "CustomDelivery",
-    };
 
     private static readonly Dictionary<string, string> ExpansionMap = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -31,37 +22,89 @@ public sealed class WikiCategoryScraper
         ["dawntrail"] = "DT",
     };
 
+    private static readonly Dictionary<string, string> JobExpansionMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // ARR base jobs
+        ["Paladin"] = "ARR", ["Warrior"] = "ARR", ["Dark Knight"] = "ARR",
+        ["Monk"] = "ARR", ["Dragoon"] = "ARR", ["Ninja"] = "ARR",
+        ["Bard"] = "ARR", ["Machinist"] = "ARR", ["Dancer"] = "ARR",
+        ["White Mage"] = "ARR", ["Scholar"] = "ARR", ["Astrologian"] = "ARR",
+        ["Black Mage"] = "ARR", ["Summoner"] = "ARR", ["Red Mage"] = "ARR",
+        // Shadowbringers jobs (start at 70-80)
+        ["Gunbreaker"] = "ShB", ["Reaper"] = "ShB", ["Sage"] = "ShB",
+        // Endwalker/Dawntrail
+        ["Viper"] = "EW", ["Pictomancer"] = "EW",
+        // Blue Mage
+        ["Blue Mage"] = "ARR",
+    };
+
     public WikiCategoryScraper(HttpClient http)
     {
         _http = http;
     }
 
-    public List<CategoryItem> ParseJobQuestTable(HtmlNode contentNode, string expansion)
+    private static string GetHeadingId(HtmlNode heading)
+    {
+        var id = heading.GetAttributeValue("id", "");
+        if (!string.IsNullOrEmpty(id))
+            return id;
+        var span = heading.SelectSingleNode(".//span[@id]");
+        return span?.GetAttributeValue("id", "") ?? "";
+    }
+
+    private static HtmlNode GetWalkStart(HtmlNode heading)
+    {
+        // Modern MediaWiki wraps h2/h3/h4 in <div class="mw-heading mw-headingN">
+        var parent = heading.ParentNode;
+        if (parent?.Name == "div")
+        {
+            var cls = parent.GetAttributeValue("class", "");
+            if (cls.Contains("mw-heading"))
+                return parent;
+        }
+        return heading;
+    }
+
+    private static HtmlNode? FindNextTable(HtmlNode heading)
+    {
+        var current = GetWalkStart(heading);
+        while ((current = current.NextSibling) != null)
+        {
+            if (current.Name == "table") return current;
+            if (current.Name is "h2" or "h3" or "h4") break;
+        }
+        return null;
+    }
+
+    public static string? ParseExpansionFromHeading(string heading)
+    {
+        return ExpansionMap.TryGetValue(heading, out var value) ? value : null;
+    }
+
+    private static string GetJobNameFromHeading(string headingId)
+    {
+        // heading IDs are like "Paladin_Quests", "Warrior_Quests", etc.
+        if (!headingId.EndsWith("_Quests", StringComparison.OrdinalIgnoreCase))
+            return headingId;
+        return headingId[..^7].Replace("_", " ");
+    }
+
+    public List<CategoryItem> ParseJobQuestTable(HtmlNode contentNode)
     {
         var items = new List<CategoryItem>();
-        var expShort = ParseExpansionFromHeading(expansion) ?? expansion;
 
-        var h3Tags = contentNode.SelectNodes(".//h3");
-        if (h3Tags == null) return items;
+        var h4Tags = contentNode.SelectNodes(".//h4");
+        if (h4Tags == null) return items;
 
-        foreach (var h3 in h3Tags)
+        foreach (var h4 in h4Tags)
         {
-            var span = h3.SelectSingleNode(".//span[@id]");
-            if (span == null) continue;
+            var h4Id = GetHeadingId(h4);
+            if (string.IsNullOrEmpty(h4Id)) continue;
 
-            var current = h3;
-            HtmlNode? table = null;
-            while ((current = current.NextSibling) != null)
-            {
-                if (current.Name == "table" && current.GetAttributeValue("class", "").Contains("questlist"))
-                {
-                    table = current;
-                    break;
-                }
-                if (current.Name == "h3" || current.Name == "h2")
-                    break;
-            }
+            var jobName = GetJobNameFromHeading(h4Id);
+            var expShort = JobExpansionMap.GetValueOrDefault(jobName, "ARR");
 
+            var table = FindNextTable(h4);
             if (table == null) continue;
 
             var rows = table.SelectNodes(".//tr");
@@ -75,7 +118,7 @@ public sealed class WikiCategoryScraper
                 var link = cells[0].SelectSingleNode(".//a");
                 if (link == null) continue;
 
-                var name = System.Web.HttpUtility.HtmlDecode(link.InnerText.Trim());
+                var name = HttpUtility.HtmlDecode(link.InnerText.Trim());
                 items.Add(new CategoryItem
                 {
                     Name = name,
@@ -88,79 +131,118 @@ public sealed class WikiCategoryScraper
         return items;
     }
 
-    public static string? ParseExpansionFromHeading(string heading)
-    {
-        return ExpansionMap.TryGetValue(heading, out var value) ? value : null;
-    }
-
     public List<CategoryItem> ParseRaidsPage(HtmlNode contentNode)
     {
         var items = new List<CategoryItem>();
         var currentSection = string.Empty;
         var currentExpansion = string.Empty;
 
-        var headings = contentNode.SelectNodes(".//h2|.//h3");
+        var headings = contentNode.SelectNodes(".//h2|.//h3|.//h4");
         if (headings == null) return items;
 
         foreach (var heading in headings)
         {
-            var span = heading.SelectSingleNode(".//span[@id]");
-            if (span == null) continue;
-            var sectionId = span.GetAttributeValue("id", "");
+            var sectionId = GetHeadingId(heading);
+            if (string.IsNullOrEmpty(sectionId)) continue;
+
+            var stripped = Regex.Replace(sectionId, @"_\d+$", "");
+            if (stripped != sectionId)
+                sectionId = stripped;
 
             if (sectionId == "Normal_Raids") { currentSection = "RaidSeries"; continue; }
             if (sectionId == "Alliance_Raids") { currentSection = "AllianceRaid"; continue; }
+            if (sectionId == "Field_Operations") { currentSection = "FieldOperation"; continue; }
             if (sectionId.StartsWith("Savage_Raids") || sectionId.StartsWith("Ultimate_Raids"))
             { currentSection = string.Empty; continue; }
-            if (sectionId == "Chaotic_Alliance_Raids" || sectionId.StartsWith("Field_Operations"))
+            if (sectionId == "Chaotic_Alliance_Raids")
             { currentSection = string.Empty; continue; }
 
-            var exp = ParseExpansionFromHeading(System.Text.RegularExpressions.Regex.Replace(sectionId.Replace("_", " "), @" \d+$", ""));
+            var cleaned = sectionId.Replace("_", " ");
+            var exp = ParseExpansionFromHeading(cleaned);
             if (exp != null)
             {
                 currentExpansion = exp;
+                AddItemsFromNextTable(heading, currentSection, currentExpansion, items);
             }
-            else if (string.IsNullOrEmpty(currentSection))
+            // Skip meta sections (not expansion names, not section markers)
+            else if (string.IsNullOrEmpty(currentSection)
+                     || sectionId.Contains("Participation")
+                     || sectionId.Contains("Rewards")
+                     || sectionId.Contains("List_of")
+                     || sectionId.Contains("Additional_"))
             {
                 continue;
-            }
-
-            var current = heading;
-            HtmlNode? table = null;
-            while ((current = current.NextSibling) != null)
-            {
-                if (current.Name == "table") { table = current; break; }
-                if (current.Name == "h2" || current.Name == "h3") break;
-            }
-
-            if (table == null) continue;
-
-            var rows = table.SelectNodes(".//tr");
-            if (rows == null) continue;
-
-            foreach (var row in rows.Skip(1))
-            {
-                var cells = row.SelectNodes(".//td");
-                if (cells == null || cells.Count < 1) continue;
-
-                var firstCol = cells[0];
-                var link = firstCol.SelectSingleNode(".//a");
-                var dutyName = link != null
-                    ? System.Web.HttpUtility.HtmlDecode(link.InnerText.Trim())
-                    : System.Web.HttpUtility.HtmlDecode(firstCol.InnerText.Trim());
-
-                if (string.IsNullOrWhiteSpace(dutyName)) continue;
-
-                items.Add(new CategoryItem
-                {
-                    Name = dutyName,
-                    Category = currentSection,
-                    Expansion = currentExpansion
-                });
             }
         }
 
         return items;
+    }
+
+    private static void AddItemsFromNextTable(
+        HtmlNode heading, string section, string expansion, List<CategoryItem> items)
+    {
+        var table = FindNextTable(heading);
+        if (table == null) return;
+
+        var rows = table.SelectNodes(".//tr");
+        if (rows == null) return;
+
+        foreach (var row in rows.Skip(1))
+        {
+            var cells = row.SelectNodes(".//td");
+            if (cells == null || cells.Count < 1) continue;
+
+            var firstCol = cells[0];
+            var link = firstCol.SelectSingleNode(".//a");
+            var dutyName = link != null
+                ? HttpUtility.HtmlDecode(link.InnerText.Trim())
+                : HttpUtility.HtmlDecode(firstCol.InnerText.Trim());
+
+            if (string.IsNullOrWhiteSpace(dutyName)) continue;
+
+            items.Add(new CategoryItem
+            {
+                Name = dutyName,
+                Category = section,
+                Expansion = expansion
+            });
+        }
+    }
+
+    private static readonly HashSet<string> NonQuestLinkTexts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Notable Rewards", "Rewards",
+        "MSQ", "Main Scenario", "Main Scenario Quest",
+        "Shadowbringers", "Shadowbringers", "Endwalker", "Dawntrail", "Stormblood", "Heavensward",
+        "Disciple of the Hand", "Disciple of the Land",
+        "Reputation", "Vendor", "Collectables",
+        "Back to top", "Table of Contents",
+    };
+
+    private static readonly HashSet<string> NonQuestLinkHrefs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "/wiki/Achievements", "/wiki/MSQ", "/wiki/Main_Scenario",
+        "/wiki/Patch_", "/wiki/Crafting", "/wiki/Items", "/wiki/Enemies",
+        "/wiki/Dye", "/wiki/Collectables", "/wiki/Gathering",
+        "/wiki/Shadowbringers", "/wiki/Endwalker", "/wiki/Dawntrail", "/wiki/Stormblood", "/wiki/Heavensward",
+        "/wiki/Disciple_of_the_Hand", "/wiki/Disciple_of_the_Land",
+    };
+
+    private static bool IsJunkLink(HtmlNode link)
+    {
+        var text = link.InnerText.Trim();
+        if (NonQuestLinkTexts.Contains(text))
+            return true;
+
+        var href = link.GetAttributeValue("href", "");
+        if (href.Contains("#") || href.Contains("Daily_Quests", StringComparison.OrdinalIgnoreCase))
+            return true;
+        foreach (var prefix in NonQuestLinkHrefs)
+        {
+            if (href.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public List<CategoryItem> ParseAlliedSocietyPage(HtmlNode contentNode)
@@ -173,11 +255,10 @@ public sealed class WikiCategoryScraper
 
         foreach (var heading in headings)
         {
-            var span = heading.SelectSingleNode(".//span[@id]");
-            if (span == null) continue;
-            var sectionId = span.GetAttributeValue("id", "");
+            var sectionId = GetHeadingId(heading);
+            if (string.IsNullOrEmpty(sectionId)) continue;
 
-            var cleaned = System.Text.RegularExpressions.Regex.Replace(sectionId.Replace("_", " "), @" (Allied Societies|Daily Quests)$", "");
+            var cleaned = Regex.Replace(sectionId.Replace("_", " "), @" (Allied Societies|Daily Quests)$", "");
             var exp = ParseExpansionFromHeading(cleaned);
             if (exp != null)
             {
@@ -185,36 +266,62 @@ public sealed class WikiCategoryScraper
                 continue;
             }
 
-            var para = heading.NextSibling;
-            while (para != null && para.Name != "p" && para.Name != "h2" && para.Name != "h3")
+            var para = GetWalkStart(heading).NextSibling;
+            while (para != null && para.Name != "p" && para.Name != "h2" && para.Name != "h3" && para.Name != "h4")
                 para = para.NextSibling;
 
             if (para == null || para.Name != "p") continue;
 
-            var links = para.SelectNodes(".//a[contains(@href,'/wiki/')]");
-            if (links == null) continue;
-
-            foreach (var link in links)
+            // Try links inside <b> first (quest names are typically bold)
+            var found = false;
+            var boldLinks = para.SelectNodes(".//b/a[contains(@href,'/wiki/')]");
+            if (boldLinks != null)
             {
-                var questName = System.Web.HttpUtility.HtmlDecode(link.InnerText.Trim());
-                if (string.IsNullOrWhiteSpace(questName)) continue;
-                items.Add(new CategoryItem
+                foreach (var link in boldLinks)
                 {
-                    Name = questName,
-                    Category = "BeastTribe",
-                    Expansion = currentExpansion
-                });
-                break;
+                    if (IsJunkLink(link)) continue;
+                    var questName = HttpUtility.HtmlDecode(link.InnerText.Trim());
+                    if (string.IsNullOrWhiteSpace(questName)) continue;
+                    items.Add(new CategoryItem
+                    {
+                        Name = questName,
+                        Category = "BeastTribe",
+                        Expansion = currentExpansion
+                    });
+                    found = true;
+                    break;
+                }
+            }
+
+            // Fallback: first non-junk wiki link in the paragraph
+            if (!found)
+            {
+                var links = para.SelectNodes(".//a[contains(@href,'/wiki/')]");
+                if (links != null)
+                {
+                    foreach (var link in links)
+                    {
+                        if (IsJunkLink(link)) continue;
+                        var questName = HttpUtility.HtmlDecode(link.InnerText.Trim());
+                        if (string.IsNullOrWhiteSpace(questName)) continue;
+                        items.Add(new CategoryItem
+                        {
+                            Name = questName,
+                            Category = "BeastTribe",
+                            Expansion = currentExpansion
+                        });
+                        break;
+                    }
+                }
             }
         }
 
         return items;
     }
 
-    public List<CategoryItem> ParseFeatureQuestsPage(HtmlNode contentNode, string defaultExpansion)
+    public List<CategoryItem> ParseFeatureQuestsPage(HtmlNode contentNode)
     {
         var items = new List<CategoryItem>();
-        var currentExpansion = ParseExpansionFromHeading(defaultExpansion) ?? defaultExpansion;
         var currentCategory = "BlueUnlock";
 
         var headings = contentNode.SelectNodes(".//h2|.//h3");
@@ -222,29 +329,56 @@ public sealed class WikiCategoryScraper
 
         foreach (var heading in headings)
         {
-            var span = heading.SelectSingleNode(".//span[@id]");
-            if (span == null) continue;
-            var sectionId = span.GetAttributeValue("id", "");
+            var sectionId = GetHeadingId(heading);
+            if (string.IsNullOrEmpty(sectionId)) continue;
 
-            var exp = ParseExpansionFromHeading(System.Text.RegularExpressions.Regex.Replace(sectionId.Replace("_", " "), @" (Instances|Dungeons)$", ""));
-            if (exp != null) { currentExpansion = exp; continue; }
+            // Skip TOC heading
+            if (sectionId == "mw-toc-heading") continue;
 
+            // Sections that should be skipped entirely (no content type for us)
             if (sectionId.Contains("Class") || sectionId.Contains("Job") || sectionId.Contains("Role"))
             { currentCategory = string.Empty; continue; }
+
+            // Chronicles of a New Era and its sub-sections
             if (sectionId.Contains("Chronicles") || sectionId.Contains("Trials")
-                || sectionId.Contains("Normal_Raids") || sectionId.Contains("Alliance_Raids"))
+                || sectionId.Contains("Normal_Raids") || sectionId.Contains("Alliance_Raids")
+                || sectionId.Contains("High-end"))
+            { currentCategory = string.Empty; continue; }
+
+            // Records of Unusual Endeavors (Custom Delivery + Variant/Criterion)
+            if (sectionId.Contains("Records_of_Unusual"))
+            { currentCategory = string.Empty; continue; }
+
+            // Side Story sections (Hildibrand, Relic Weapons, Eureka, Bozja, Occult Crescent)
+            // Hildibrand IS a BlueUnlock feature quest, don't skip the h2
+            if (sectionId.Contains("Side_Story_Questlines"))
+            { currentCategory = "BlueUnlock"; continue; }
+
+            if (sectionId.Contains("Relic_Weapons")
+                || sectionId.Contains("The_Forbidden_Land")
+                || sectionId.Contains("Save_the_Queen")
+                || sectionId.Contains("Occult_Crescent"))
+            { currentCategory = string.Empty; continue; }
+
+            // Other non-feature sections
+            if (sectionId.Contains("Aether_Current") || sectionId.Contains("Levequests")
+                || sectionId.Contains("Grand_Company") || sectionId.Contains("The_Hunt")
+                || sectionId.Contains("Allied_Society") || sectionId.Contains("Locations")
+                || sectionId.Contains("Glamour") || sectionId.Contains("Achievement")
+                || sectionId.Contains("Seasonal") || sectionId.Contains("Special")
+                || sectionId.Contains("PvP") || sectionId.Contains("Guildhests")
+                || sectionId.Contains("Stone,"))
+            { currentCategory = string.Empty; continue; }
+
+            // Skip sub-sections of non-feature sections (e.g., GC squad headings)
+            if (sectionId.StartsWith("The_", StringComparison.OrdinalIgnoreCase)
+                && (sectionId.Contains("Maelstrom") || sectionId.Contains("Flames")
+                    || sectionId.Contains("Twin_Adder") || sectionId.Contains("Order_of")))
             { currentCategory = string.Empty; continue; }
 
             currentCategory = "BlueUnlock";
 
-            var current = heading;
-            HtmlNode? table = null;
-            while ((current = current.NextSibling) != null)
-            {
-                if (current.Name == "table") { table = current; break; }
-                if (current.Name == "h2" || current.Name == "h3") break;
-            }
-
+            var table = FindNextTable(heading);
             if (table == null || string.IsNullOrEmpty(currentCategory)) continue;
 
             var rows = table.SelectNodes(".//tr");
@@ -258,16 +392,248 @@ public sealed class WikiCategoryScraper
                 var link = cells[0].SelectSingleNode(".//a");
                 if (link == null) continue;
 
-                var name = System.Web.HttpUtility.HtmlDecode(link.InnerText.Trim());
+                var name = HttpUtility.HtmlDecode(link.InnerText.Trim());
                 items.Add(new CategoryItem
                 {
                     Name = name,
                     Category = currentCategory,
+                    Expansion = "ARR" // placeholder, refined in detail stage
+                });
+            }
+        }
+
+        return items;
+    }
+
+    public List<CategoryItem> ParseSideQuestsPage(HtmlNode contentNode)
+    {
+        var items = new List<CategoryItem>();
+        var currentExpansion = string.Empty;
+
+        var headings = contentNode.SelectNodes(".//h2|.//h3");
+        if (headings == null) return items;
+
+        foreach (var heading in headings)
+        {
+            var sectionId = GetHeadingId(heading);
+            if (string.IsNullOrEmpty(sectionId)) continue;
+
+            var cleaned = Regex.Replace(sectionId.Replace("_", " "), @" (Quests?)$", "");
+            var exp = ParseExpansionFromHeading(cleaned);
+            if (exp != null)
+            {
+                currentExpansion = exp;
+                continue;
+            }
+
+            // Side quests are listed as links in paragraphs, not tables
+            var para = GetWalkStart(heading).NextSibling;
+            while (para != null && para.Name != "p" && para.Name != "h2" && para.Name != "h3" && para.Name != "h4")
+                para = para.NextSibling;
+
+            if (para == null || para.Name != "p") continue;
+
+            var links = para.SelectNodes(".//a[contains(@href,'/wiki/')]");
+            if (links == null) continue;
+
+            foreach (var link in links)
+            {
+                var questName = HttpUtility.HtmlDecode(link.InnerText.Trim());
+                if (string.IsNullOrWhiteSpace(questName)) continue;
+                items.Add(new CategoryItem
+                {
+                    Name = questName,
+                    Category = "SideQuest",
                     Expansion = currentExpansion
                 });
             }
         }
 
+        return items;
+    }
+
+    public List<CategoryItem> ParseDeepDungeonsPage(HtmlNode contentNode)
+    {
+        var items = new List<CategoryItem>();
+
+        var ul = contentNode.SelectSingleNode(".//h2/span[@id='List_of_deep_dungeons']/../../following-sibling::ul[1]");
+        if (ul == null)
+        {
+            // Fallback: find any ul with deep dungeon links
+            ul = contentNode.SelectSingleNode(".//ul[li/a[contains(@href,'/wiki/Palace_of_the_Dead')]]");
+        }
+
+        if (ul == null) return items;
+
+        var links = ul.SelectNodes(".//li/a[contains(@href,'/wiki/')]");
+        if (links == null) return items;
+
+        foreach (var link in links)
+        {
+            var name = HttpUtility.HtmlDecode(link.InnerText.Trim());
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            if (name.Contains("the") && name.Length < 5) continue; // skip "the", "a", etc.
+
+            items.Add(new CategoryItem
+            {
+                Name = name,
+                Category = "DeepDungeon",
+                Expansion = "ARR"
+            });
+        }
+
+        return items;
+    }
+
+    private static readonly Dictionary<string, string> RoleExpansionFullNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ShB"] = "Shadowbringers",
+        ["EW"] = "Endwalker",
+        ["DT"] = "Dawntrail",
+    };
+
+    public List<CategoryItem> ParseRoleQuestsPage(HtmlNode contentNode)
+    {
+        var items = new List<CategoryItem>();
+        var currentExpansion = string.Empty;
+        var currentRole = string.Empty;
+
+        var headings = contentNode.SelectNodes(".//h2|.//h3");
+        if (headings == null) return items;
+
+        foreach (var heading in headings)
+        {
+            var sectionId = GetHeadingId(heading);
+            if (string.IsNullOrEmpty(sectionId)) continue;
+
+            // Try as expansion heading first (h2)
+            var cleaned = Regex.Replace(sectionId.Replace("_", " "), @"^\d+\s+", "");
+            var exp = ParseExpansionFromHeading(cleaned);
+            if (exp != null)
+            {
+                currentExpansion = exp;
+                currentRole = string.Empty;
+                continue;
+            }
+
+            // h3: role name
+            if (sectionId.Equals("Master_Role_Quests", StringComparison.OrdinalIgnoreCase))
+            {
+                currentRole = "Master";
+            }
+            else
+            {
+                currentRole = sectionId.Replace("_", " ");
+            }
+
+            // Parse the quest names from the table (future use for chain linking)
+            var table = FindNextTable(heading);
+            if (table != null)
+            {
+                var trs = table.SelectNodes(".//tr");
+                if (trs != null)
+                {
+                    foreach (var row in trs.Skip(1))
+                    {
+                        var cells = row.SelectNodes(".//td");
+                        if (cells == null || cells.Count < 1) continue;
+                        var link = cells[0].SelectSingleNode(".//a");
+                        if (link != null)
+                        {
+                            var questName = HttpUtility.HtmlDecode(link.InnerText.Trim());
+                            // Quest names are collected for CSV enrichment
+                        }
+                    }
+                }
+            }
+
+            // Produce one content item for this role chain
+            // Use full expansion name for display, but set Expansion to short code for sorting/filtering
+            var expansionFull = RoleExpansionFullNames.GetValueOrDefault(currentExpansion, currentExpansion);
+            var itemName = $"{expansionFull} {currentRole} Role Quests";
+            items.Add(new CategoryItem
+            {
+                Name = itemName,
+                Category = "RoleQuest",
+                Expansion = currentExpansion
+            });
+        }
+
+        return items;
+    }
+
+    public async Task<List<CategoryItem>> ScrapeCustomDeliveriesAsync()
+    {
+        var items = new List<CategoryItem>();
+
+        var customPage = await FetchPageAsync("/wiki/Custom_Deliveries");
+        var urls = GetCustomDeliverySubPageUrls(customPage);
+
+        foreach (var urlItem in urls)
+        {
+            var subPage = await FetchPageAsync(urlItem.Name);
+            var subItems = ParseCustomDeliverySubPage(subPage);
+            items.AddRange(subItems);
+        }
+
+        return items;
+    }
+
+    private async Task<HtmlNode> FetchPageAsync(string path)
+    {
+        var url = $"{WikiBase}{path}";
+        var html = await _http.GetStringAsync(url);
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+        return doc.DocumentNode;
+    }
+
+    public List<CategoryItem> GetCustomDeliverySubPageUrls(HtmlNode contentNode)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var items = new List<CategoryItem>();
+        var links = contentNode.SelectNodes(
+            ".//a[contains(@href,'/wiki/Custom_Deliveries_(')]");
+        if (links == null) return items;
+
+        foreach (var link in links)
+        {
+            var href = link.GetAttributeValue("href", "");
+            if (string.IsNullOrWhiteSpace(href)) continue;
+            if (seen.Add(href))
+                items.Add(new CategoryItem { Name = href });
+        }
+        return items;
+    }
+
+    public List<CategoryItem> ParseCustomDeliverySubPage(HtmlNode contentNode)
+    {
+        var items = new List<CategoryItem>();
+        var table = contentNode.SelectSingleNode(
+            ".//table[contains(@class,'quest')]");
+        if (table == null) return items;
+
+        var rows = table.SelectNodes(".//tr");
+        if (rows == null) return items;
+
+        foreach (var row in rows.Skip(1))
+        {
+            var cells = row.SelectNodes(".//td");
+            if (cells == null || cells.Count < 1) continue;
+
+            var link = cells[0].SelectSingleNode(".//a[contains(@href,'/wiki/')]");
+            if (link == null) continue;
+
+            var name = HttpUtility.HtmlDecode(link.InnerText.Trim());
+            if (string.IsNullOrWhiteSpace(name)) continue;
+
+            items.Add(new CategoryItem
+            {
+                Name = name,
+                Category = "CustomDelivery",
+                Expansion = "ARR" // placeholder, refined from level in detail stage
+            });
+        }
         return items;
     }
 
@@ -277,29 +643,9 @@ public sealed class WikiCategoryScraper
     {
         var allItems = new List<CategoryItem>();
 
-        // Job Quests — each h2 section is an expansion
+        // Job Quests
         var jobItems = await FetchAndParseAsync("/wiki/Job_Quests", doc =>
-        {
-            var expHeads = doc.DocumentNode.SelectNodes(".//h2");
-            var result = new List<CategoryItem>();
-            if (expHeads != null)
-            {
-                foreach (var h2 in expHeads)
-                {
-                    var span = h2.SelectSingleNode(".//span[@id]");
-                    if (span == null) continue;
-                    var exp = ParseExpansionFromHeading(
-                        System.Text.RegularExpressions.Regex.Replace(
-                            span.GetAttributeValue("id", "").Replace("_", " "),
-                            @"_\d+$", ""));
-                    if (exp != null)
-                        result.AddRange(ParseJobQuestTable(doc.DocumentNode, exp));
-                }
-            }
-            if (result.Count == 0)
-                result.AddRange(ParseJobQuestTable(doc.DocumentNode, "ARR"));
-            return result;
-        });
+            ParseJobQuestTable(doc.DocumentNode));
         allItems.AddRange(jobItems);
 
         // Raids (Normal + Alliance)
@@ -314,28 +660,29 @@ public sealed class WikiCategoryScraper
 
         // Feature Quests
         var blueItems = await FetchAndParseAsync("/wiki/Feature_Quests", doc =>
-        {
-            var items = new List<CategoryItem>();
-            foreach (var exp in new[] { "ARR", "HW", "SB", "ShB", "EW", "DT" })
-                items.AddRange(ParseFeatureQuestsPage(doc.DocumentNode, exp));
-            return items;
-        });
+            ParseFeatureQuestsPage(doc.DocumentNode));
         allItems.AddRange(blueItems);
-
-        // Custom Deliveries
-        var deliveryItems = await FetchAndParseAsync("/wiki/Custom_Deliveries", doc =>
-        {
-            var items = new List<CategoryItem>();
-            foreach (var exp in new[] { "HW", "SB", "ShB", "EW", "DT" })
-                items.AddRange(ParseFeatureQuestsPage(doc.DocumentNode, exp));
-            return items;
-        });
-        allItems.AddRange(deliveryItems);
 
         // Side Quests
         var sideItems = await FetchAndParseAsync("/wiki/Side_Quests", doc =>
-            ParseFeatureQuestsPage(doc.DocumentNode, "ARR"));
+            ParseSideQuestsPage(doc.DocumentNode));
         allItems.AddRange(sideItems);
+
+        // Deep Dungeons
+        var deepItems = await FetchAndParseAsync("/wiki/Deep_Dungeons", doc =>
+            ParseDeepDungeonsPage(doc.DocumentNode));
+        allItems.AddRange(deepItems);
+
+        // Custom Deliveries
+        try
+        {
+            var customItems = await ScrapeCustomDeliveriesAsync();
+            allItems.AddRange(customItems);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"WARN: Failed to scrape custom deliveries: {ex.Message}");
+        }
 
         return allItems.DistinctBy(i => i.Name).ToList();
     }
@@ -343,7 +690,17 @@ public sealed class WikiCategoryScraper
     private async Task<List<CategoryItem>> FetchAndParseAsync(
         string path, Func<HtmlDocument, List<CategoryItem>> parser)
     {
-        var html = await _http.GetStringAsync($"{WikiBase}{path}");
+        var url = $"{WikiBase}{path}";
+        string html;
+        try
+        {
+            html = await _http.GetStringAsync(url);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"WARN: Failed to fetch {path}: {ex.Message}");
+            return new List<CategoryItem>();
+        }
         var doc = new HtmlDocument();
         doc.LoadHtml(html);
         return parser(doc);
