@@ -347,18 +347,12 @@ public sealed class WikiCategoryScraper
 
             // Records of Unusual Endeavors (Custom Delivery + Variant/Criterion)
             if (sectionId.Contains("Records_of_Unusual"))
-            { currentCategory = string.Empty; continue; }
+            { currentCategory = "BlueUnlock"; continue; }
 
             // Side Story sections (Hildibrand, Relic Weapons, Eureka, Bozja, Occult Crescent)
             // Hildibrand IS a BlueUnlock feature quest, don't skip the h2
             if (sectionId.Contains("Side_Story_Questlines"))
             { currentCategory = "BlueUnlock"; continue; }
-
-            if (sectionId.Contains("Relic_Weapons")
-                || sectionId.Contains("The_Forbidden_Land")
-                || sectionId.Contains("Save_the_Queen")
-                || sectionId.Contains("Occult_Crescent"))
-            { currentCategory = string.Empty; continue; }
 
             // Other non-feature sections
             if (sectionId.Contains("Aether_Current") || sectionId.Contains("Levequests")
