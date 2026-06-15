@@ -7543,7 +7543,7 @@
       "locationMapX": null,
       "locationMapY": null,
       "questId": null,
-      "achievementId": 1025,
+      "achievementId": null,
       "unlockQuestIds": [
         67022
       ],
@@ -7561,7 +7561,7 @@
       "locationMapX": null,
       "locationMapY": null,
       "questId": null,
-      "achievementId": 907,
+      "achievementId": null,
       "unlockQuestIds": [
         66856
       ],
@@ -7597,7 +7597,7 @@
       "locationMapX": null,
       "locationMapY": null,
       "questId": null,
-      "achievementId": 870,
+      "achievementId": null,
       "unlockQuestIds": [
         66788
       ],
@@ -13139,7 +13139,7 @@
       "locationMapX": null,
       "locationMapY": null,
       "questId": null,
-      "achievementId": 1498,
+      "achievementId": null,
       "unlockQuestIds": [
         67791
       ],
@@ -15743,7 +15743,7 @@
       "locationMapX": null,
       "locationMapY": null,
       "questId": null,
-      "achievementId": 2017,
+      "achievementId": null,
       "unlockQuestIds": [
         68572
       ],
@@ -15761,7 +15761,7 @@
       "locationMapX": null,
       "locationMapY": null,
       "questId": null,
-      "achievementId": 2000,
+      "achievementId": null,
       "unlockQuestIds": [
         68509
       ],

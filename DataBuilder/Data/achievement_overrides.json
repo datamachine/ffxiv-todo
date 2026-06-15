@@ -70,13 +70,6 @@
     { "contentName": "Mount Rokkon", "achievementId": 3331 },
     { "contentName": "Another Mount Rokkon", "achievementId": 3338 },
     { "contentName": "Aloalo Island", "achievementId": 3341 },
-    { "contentName": "Another Aloalo Island", "achievementId": 3348 },
-
-    { "contentName": "Little Solace", "achievementId": 870 },
-    { "contentName": "789th Order Dig", "achievementId": 907 },
-    { "contentName": "Ehcatl", "achievementId": 1025 },
-    { "contentName": "Loth ast Vath", "achievementId": 1498 },
-    { "contentName": "Tamamizu", "achievementId": 2000 },
-    { "contentName": "Castellum Velodyna", "achievementId": 2017 }
+    { "contentName": "Another Aloalo Island", "achievementId": 3348 }
   ]
 }
