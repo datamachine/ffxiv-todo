@@ -1,3 +1,14 @@
 {
-  "overrides": []
+  "overrides": [
+    { "contentName": "The Unending Coil of Bahamut (Ultimate)", "achievementId": 1993 },
+    { "contentName": "The Weapon's Refrain (Ultimate)", "achievementId": 2107 },
+    { "contentName": "The Epic of Alexander (Ultimate)", "achievementId": 2444 },
+    { "contentName": "The Omega Protocol (Ultimate)", "achievementId": 3162 },
+    { "contentName": "Dancing Mad (Ultimate)", "achievementId": 4069 },
+    { "contentName": "The Cloud of Darkness (Chaotic)", "achievementId": 3616 },
+    { "contentName": "Faux Hollows", "achievementId": 2637 },
+    { "contentName": "The Masked Carnivale", "achievementId": 2449 },
+    { "contentName": "Ishgardian Restoration", "achievementId": 2526 },
+    { "contentName": "Island Sanctuary", "achievementId": 3089 }
+  ]
 }
