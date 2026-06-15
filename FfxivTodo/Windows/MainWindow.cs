@@ -9,6 +9,7 @@ using FfxivTodo.Models;
 using FfxivTodo.Services;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Plugin.Services;
+using Lumina.Excel.Sheets;
 using Newtonsoft.Json;
 
 namespace FfxivTodo.Windows;
@@ -465,6 +466,23 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.Text($"{MainWindowFilterLogic.GetCategoryLabel(item.Category)}  |  {statusLabel}");
         if (entry.IsManual)
             ImGui.TextColored(new Vector4(0.7f, 0.7f, 1.0f, 1), "(manual override)");
+
+        if (item.AchievementId.HasValue)
+        {
+            var achId = item.AchievementId.Value;
+            var achName = $"ID {achId}";
+            var sheet = Plugin.DataManager.GameData.GetExcelSheet<Achievement>();
+            if (sheet?.TryGetRow(achId, out var achRow) == true)
+                achName = achRow.Name.ExtractText();
+            ImGui.Text($"Achievement: {achName}");
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Wiki"))
+            {
+                var wikiUrl = $"https://ffxiv.consolegameswiki.com/wiki/{achName.Replace(" ", "_")}";
+                Process.Start(new ProcessStartInfo(wikiUrl) { UseShellExecute = true });
+            }
+
+        }
 
         if (locked)
         {

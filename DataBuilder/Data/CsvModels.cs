@@ -43,7 +43,7 @@ public sealed record AchievementCsvRow
     [Index(0)]
     public int Id { get; set; }
 
-    [Index(2)]
+    [Index(1)]
     public string Name { get; set; } = string.Empty;
 }
 

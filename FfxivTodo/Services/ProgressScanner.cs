@@ -55,7 +55,10 @@ public sealed class ProgressScanner : IDisposable
             // that is the definitive completion signal — skip quest chain evaluation
             if (parent.AchievementId.HasValue && Plugin.UnlockState.IsAchievementListLoaded)
             {
-                if (IsAchievementComplete(parent.AchievementId.Value))
+                var achId = parent.AchievementId.Value;
+                var achComplete = IsAchievementComplete(achId);
+                Plugin.Log.Debug($"AutoCompleteParents: '{parent.Name}' achId={achId} complete={achComplete}");
+                if (achComplete)
                 {
                     parentEntry.Status = ItemStatus.Completed;
                     continue;
@@ -133,7 +136,10 @@ public sealed class ProgressScanner : IDisposable
 
         if (hasAchievementCheck && Plugin.UnlockState.IsAchievementListLoaded)
         {
-            entry.Status = IsAchievementComplete(item.AchievementId!.Value)
+            var achId = item.AchievementId!.Value;
+            var isComplete = IsAchievementComplete(achId);
+            Plugin.Log.Debug($"ScanItem: '{item.Name}' achId={achId} isComplete={isComplete}");
+            entry.Status = isComplete
                 ? ItemStatus.Completed
                 : ItemStatus.NotStarted;
             return;
@@ -153,13 +159,24 @@ public sealed class ProgressScanner : IDisposable
     private static bool IsAchievementComplete(uint achievementId)
     {
         if (!Plugin.UnlockState.IsAchievementListLoaded)
+        {
+            Plugin.Log.Debug($"IsAchievementComplete({achievementId}): list not loaded");
             return false;
+        }
         var sheet = Plugin.DataManager.GameData.GetExcelSheet<Achievement>();
         if (sheet == null)
+        {
+            Plugin.Log.Debug($"IsAchievementComplete({achievementId}): sheet is null");
             return false;
+        }
         if (!sheet.TryGetRow(achievementId, out var row))
+        {
+            Plugin.Log.Debug($"IsAchievementComplete({achievementId}): row not found in sheet");
             return false;
-        return Plugin.UnlockState.IsAchievementComplete(row);
+        }
+        var result = Plugin.UnlockState.IsAchievementComplete(row);
+        Plugin.Log.Debug($"IsAchievementComplete({achievementId}): result={result}");
+        return result;
     }
 
     public void Dispose()
