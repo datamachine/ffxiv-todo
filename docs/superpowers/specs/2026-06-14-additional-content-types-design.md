@@ -18,7 +18,7 @@ The current content.json has 680 items across 12 categories. Seven content types
 | Enum value | Label | New? | Item count |
 |---|---|---|---|
 | `RoleQuest` | "Role quests" | Exists, unused | 17 |
-| `VariantDungeon` | "Variant dungeons" | Exists, unused | Expand 1 to 8 (+7) |
+| `VariantDungeon` | "Variant dungeons" | Exists, in use | Expand 1 to 8 (+7) |
 | `RelicWeapon` | "Relic weapons" | New | 7 |
 | `IslandSanctuary` | "Island Sanctuary" | New | 1 |
 | `FauxHollows` | "Faux Hollows" | New | 1 |
