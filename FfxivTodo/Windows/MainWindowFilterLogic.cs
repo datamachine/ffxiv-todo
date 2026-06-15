@@ -30,7 +30,7 @@ public static class MainWindowFilterLogic
     public static string GetCategoryLabel(ContentCategory category) => category switch
     {
         ContentCategory.BlueUnlock => "Unlock quests",
-        ContentCategory.BeastTribe => "Tribal quests",
+        ContentCategory.BeastTribe => "Allied Society Quests",
         ContentCategory.SideQuest => "Side quests",
         ContentCategory.JobQuest => "Job quests",
         ContentCategory.RoleQuest => "Role quests",
@@ -38,6 +38,17 @@ public static class MainWindowFilterLogic
         ContentCategory.RaidSeries => "Raid series",
         ContentCategory.AllianceRaid => "Alliance raids",
         ContentCategory.CustomDelivery => "Custom deliveries",
+        ContentCategory.SavageRaid => "Savage raids",
+        ContentCategory.UltimateRaid => "Ultimate raids",
+        ContentCategory.FieldOperation => "Field operations",
+        ContentCategory.VariantDungeon => "Variant dungeons",
+        ContentCategory.ChaoticRaid => "Chaotic raids",
+        ContentCategory.DeepDungeon => "Deep dungeons",
+        ContentCategory.RelicWeapon => "Relic weapons",
+        ContentCategory.IslandSanctuary => "Island Sanctuary",
+        ContentCategory.IshgardianRestoration => "Ishgardian Restoration",
+        ContentCategory.FauxHollows => "Faux Hollows",
+        ContentCategory.MaskedCarnivale => "The Masked Carnivale",
         _ => category.ToString()
     };
 
