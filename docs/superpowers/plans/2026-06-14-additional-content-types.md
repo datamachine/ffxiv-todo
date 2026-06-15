@@ -131,6 +131,13 @@ h2: Dawntrail
 ```
 
 ```csharp
+private static readonly Dictionary<string, string> RoleExpansionFullNames = new(StringComparer.OrdinalIgnoreCase)
+{
+    ["ShB"] = "Shadowbringers",
+    ["EW"] = "Endwalker",
+    ["DT"] = "Dawntrail",
+};
+
 public List<CategoryItem> ParseRoleQuestsPage(HtmlNode contentNode)
 {
     var items = new List<CategoryItem>();
@@ -187,7 +194,10 @@ public List<CategoryItem> ParseRoleQuestsPage(HtmlNode contentNode)
         }
 
         // Produce one content item for this role chain
-        var itemName = $"{currentExpansion} {currentRole} Role Quests";
+        // Use full expansion name for display (e.g. "Shadowbringers Tank Role Quests"),
+        // but set Expansion to short code for sorting/filtering
+        var expansionFull = RoleExpansionFullNames.GetValueOrDefault(currentExpansion, currentExpansion);
+        var itemName = $"{expansionFull} {currentRole} Role Quests";
         items.Add(new CategoryItem
         {
             Name = itemName,
@@ -511,7 +521,8 @@ if (sectionId.Contains("Records_of_Unusual"))
 
 - [ ] **Step 2: Un-skip Relic Weapons section**
 
-Change lines 357-361:
+Change lines 357-361 — remove the lines that clear currentCategory for these sections:
+
 ```csharp
 // BEFORE:
 if (sectionId.Contains("Relic_Weapons")
@@ -520,17 +531,14 @@ if (sectionId.Contains("Relic_Weapons")
     || sectionId.Contains("Occult_Crescent"))
 { currentCategory = string.Empty; continue; }
 
-// AFTER:
-// Allow relic weapon sub-sections to produce BlueUnlock items
-if (sectionId.Contains("Relic_Weapons"))
-{ /* keep currentCategory from parent (BlueUnlock) */ continue; }
-
-// The Forbidden Land, Save the Queen, Occult Crescent all have quest tables
-if (sectionId.Contains("The_Forbidden_Land")
-    || sectionId.Contains("Save_the_Queen")
-    || sectionId.Contains("Occult_Crescent"))
-{ /* keep currentCategory from parent (BlueUnlock) */ continue; }
+// AFTER: Delete these lines entirely.
+// Explanation: The parent h2 "Side_Story_Questlines" already sets currentCategory = "BlueUnlock".
+// Removing this skip lets the h3 sections inherit BlueUnlock.
+// Relic_Weapons h3 has no table → nothing added (harmless).
+// The_Forbidden_Land, Save_the_Queen, Occult_Crescent h3s have tables → BlueUnlock items added.
 ```
+
+Note: Do NOT replace with `continue` statements — that would skip the table parsing logic at the bottom of the foreach loop. Just remove the entire if block.
 
 - [ ] **Step 3: Commit**
 
@@ -679,28 +687,28 @@ Using the quest IDs from the CSV lookup, add entries to `quest_chain_overrides.j
 
 ```json
 // Shadowbringers Role Quests
-{ "contentName": "ShB Tank Role Quests",               "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "ShB Physical DPS Role Quests",        "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "ShB Magical Ranged DPS Role Quests",  "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "ShB Healer Role Quests",              "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "ShB Master Role Quests",              "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Shadowbringers Tank Role Quests",               "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Shadowbringers Physical DPS Role Quests",        "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Shadowbringers Magical Ranged DPS Role Quests",  "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Shadowbringers Healer Role Quests",              "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Shadowbringers Master Role Quests",              "questIds": [<first_quest_id>], "explicitChain": false },
 // Endwalker Role Quests
-{ "contentName": "EW Tank Role Quests",                 "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "EW Melee DPS Role Quests",            "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "EW Physical Ranged DPS Role Quests",  "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "EW Magical Ranged DPS Role Quests",   "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "EW Healer Role Quests",               "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "EW Master Role Quests",               "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Endwalker Tank Role Quests",                     "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Endwalker Melee DPS Role Quests",                "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Endwalker Physical Ranged DPS Role Quests",      "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Endwalker Magical Ranged DPS Role Quests",       "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Endwalker Healer Role Quests",                   "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Endwalker Master Role Quests",                   "questIds": [<first_quest_id>], "explicitChain": false },
 // Dawntrail Role Quests
-{ "contentName": "DT Tank Role Quests",                 "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "DT Melee DPS Role Quests",            "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "DT Physical Ranged DPS Role Quests",  "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "DT Magical Ranged DPS Role Quests",   "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "DT Healer Role Quests",               "questIds": [<first_quest_id>], "explicitChain": false },
-{ "contentName": "DT Master Role Quests",               "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Dawntrail Tank Role Quests",                     "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Dawntrail Melee DPS Role Quests",                "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Dawntrail Physical Ranged DPS Role Quests",      "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Dawntrail Magical Ranged DPS Role Quests",       "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Dawntrail Healer Role Quests",                   "questIds": [<first_quest_id>], "explicitChain": false },
+{ "contentName": "Dawntrail Master Role Quests",                   "questIds": [<first_quest_id>], "explicitChain": false },
 ```
 
-**Note:** Content names use expansion abbreviations (ShB, EW, DT) because the RoleQuests scraper sets `Expansion` with short codes, not "Shadowbringers" etc.
+Content names use full expansion names (e.g. "Shadowbringers") matching what the parser produces.
 
 - [ ] **Step 3: Add Relic Weapon override entries**
 
