@@ -5,15 +5,15 @@ A Dalamud plugin that tracks non-MSQ content completion across every expansion. 
 ## Features
 
 - **Tree view** — all non-MSQ content organized by expansion and category: job quests, role quests, raid series, alliance raids, savage/ultimate/chaotic raids, field operations, variant dungeons, deep dungeons, relic weapons, optional dungeons, PvP, allied society quests, custom deliveries, and more
-- **Auto-detection** — checks your quest journal and achievement list to mark items as Not Started / In Progress / Completed
-- **Quest chain tracking** — content items with unlock quest chains (e.g. Eden's Gate requires completing "Shadowbringers") auto-complete when the chain is done
-- **Achievement overrides** — content like Faux Hollows, Island Sanctuary, and Ultimates use achievement completion as the definitive signal
-- **Detail panel** — click any item to see its unlock quests, prerequisites, and location; quests are grouped by status (Completed / In Progress / Not Started) with colored headers
+- **Auto-detection** — checks your quest journal and achievement list to mark items as Not Started / In Progress / Unlocked / Completed
+- **Quest chain tracking** — content items with unlock quest chains auto-complete via `AutoCompleteParents`
+- **Achievement-based detection** — items with achievements use them as the definitive completion signal. Detail panel shows the achievement name at runtime
+- **Detail panel** — click any item to see its unlock quests (grouped by status with colored headers), achievement info with wiki link, prerequisites, and location
 - **Flag on map** — places a map flag on the first Not Started quest in a chain, or the content item itself
-- **Overlay** — compact always-on-top window (`/todotracker`) showing up to 10 tracked items with configurable opacity and position
-- **Filtering** — filter by expansion, category, and completion status; filter state persists between sessions
+- **Overlay** — compact always-on-top window (`/todotracker`) showing up to 10 tracked items; hidden when not logged in
+- **Filtering** — filter by expansion, category, and completion status (Not Started / In Progress / Unlocked / Completed / Locked / Ignored)
 - **Search** — text search across all content names
-- **Manual override** — manually set any item to Completed or InProgress/NotStarted
+- **Manual override** — manually set any item's status
 
 ## Commands
 

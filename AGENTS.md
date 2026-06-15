@@ -80,8 +80,17 @@ Plugin build uses `Dalamud.NET.Sdk/15.0.0` targeting `net10.0-windows`. Pre-exis
 ## Content tracking (runtime)
 
 The plugin auto-detects completion via two mechanisms:
-1. **Quest-based** — `ScanItem` checks quest journal for each item's `QuestId`; `AutoCompleteParents` walks `UnlockQuestIds` chains to auto-complete parent items
-2. **Achievement-based** — when achievement list is loaded, achievement status takes priority over quest chains for items that have both a `AchievementId` and `UnlockQuestIds`
+1. **Quest-based** — `ScanItem` checks quest journal for each item's `QuestId`; `AutoCompleteParents` walks `UnlockQuestIds` chains to set parent status
+2. **Achievement-based** — when achievement list is loaded, achievement check takes priority over quest chains in `AutoCompleteParents`; `ScanItem` also checks achievements directly
+
+Status values:
+- **NotStarted** — no quests started, no achievement earned
+- **InProgress** — at least one unlock quest accepted but not all done
+- **Unlocked** — all unlock quests done, achievement exists but not yet earned (items with `AchievementId`)
+- **Completed** — all unlock quests done (no achievement tracked), OR achievement earned (items with `AchievementId`)
+- Items with `AchievementId` use the achievement as the definitive completion signal; without one, quest chain completion is terminal
+
+Achievement name display (`MainWindow.cs`): when an item has `AchievementId`, the detail panel shows the achievement name from Lumina's `Achievement` sheet at runtime, plus a wiki link constructed as `https://ffxiv.consolegameswiki.com/wiki/{AchievementName}`.
 
 ## Common pitfalls
 
@@ -89,3 +98,5 @@ The plugin auto-detects completion via two mechanisms:
 - **New ContentCategory enum values** must be added in order at the end; the enum is serialized as strings via `StringEnumConverter`
 - **Chain walking** with `explicitChain: false` walks ALL prerequisites (including MSQ) — use `explicitChain: true` with specific quest IDs for chains that branch into MSQ territory
 - **DistinctBy** in `ScrapeAllAsync` dedup by item name — two scrapers producing the same name results in only the first one surviving
+- **Achievement CSV column index**: `CsvModels.cs` has `AchievementCsvRow.Name` at `[Index(1)]` (column 1 is the achievement name, column 2 is the description). Do not change this — matching relies on the name column
+- **BeastTribe renaming**: tribe location names are renamed to society names in `ContentJsonFormatter.BeastTribeNames`. Achievement overrides must use the ORIGINAL location name (e.g., "Little Solace" not "Sylph") because enrichment runs before renaming
