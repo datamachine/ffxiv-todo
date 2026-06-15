@@ -15,6 +15,7 @@ public sealed class UnlockQuestResolver
 {
     private readonly string _overrideFilePath;
     private Dictionary<string, List<uint>> _overridesByName = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _explicitChains = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly string[] ExpansionNames = ["ARR", "HW", "SB", "ShB", "EW", "DT"];
 
@@ -63,24 +64,29 @@ public sealed class UnlockQuestResolver
             if (item.UnlockQuestIds.Count == 0)
                 continue;
 
-            var fullChain = new List<uint>();
-            foreach (var terminalQuestId in item.UnlockQuestIds)
-            {
-                if (csv != null)
-                {
-                    var walked = WalkPrerequisiteChain(terminalQuestId, csv, existingQuestIds);
-                    fullChain.AddRange(walked);
-                }
-                else
-                {
-                    if (!existingQuestIds.Contains(terminalQuestId))
-                        fullChain.Add(terminalQuestId);
-                }
-            }
+            var isExplicit = _explicitChains.Contains(item.Name);
 
-            if (fullChain.Count > 0 && csv != null)
+            if (!isExplicit)
             {
-                item.UnlockQuestIds = fullChain;
+                var fullChain = new List<uint>();
+                foreach (var terminalQuestId in item.UnlockQuestIds)
+                {
+                    if (csv != null)
+                    {
+                        var walked = WalkPrerequisiteChain(terminalQuestId, csv, existingQuestIds);
+                        fullChain.AddRange(walked);
+                    }
+                    else
+                    {
+                        if (!existingQuestIds.Contains(terminalQuestId))
+                            fullChain.Add(terminalQuestId);
+                    }
+                }
+
+                if (fullChain.Count > 0 && csv != null)
+                {
+                    item.UnlockQuestIds = fullChain;
+                }
             }
 
             foreach (var questId in item.UnlockQuestIds)
@@ -174,7 +180,9 @@ public sealed class UnlockQuestResolver
 
         var dutyCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "RaidSeries", "TrialSeries", "AllianceRaid"
+            "RaidSeries", "TrialSeries", "AllianceRaid", "RoleQuest",
+            "RelicWeapon", "IslandSanctuary", "IshgardianRestoration",
+            "FauxHollows", "MaskedCarnivale", "VariantDungeon"
         };
 
         var unresolved = items
@@ -231,6 +239,8 @@ public sealed class UnlockQuestResolver
                 continue;
             }
             dict[o.ContentName] = o.QuestIds;
+            if (o.ExplicitChain)
+                _explicitChains.Add(o.ContentName);
         }
         _overridesByName = dict;
     }
