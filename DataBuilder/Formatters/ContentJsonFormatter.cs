@@ -152,6 +152,10 @@ public static class ContentJsonFormatter
         foreach (var item in validItems)
         {
             item.Expansion = InferExpansion(item.Level, item.Category, item.Expansion, item.QuestId.HasValue);
+
+            // Fallback: any item without an expansion will crash the plugin's enum deserialization
+            if (string.IsNullOrWhiteSpace(item.Expansion))
+                item.Expansion = "ARR";
         }
 
         // Infer level from expansion for duty categories where all items use the expansion cap
