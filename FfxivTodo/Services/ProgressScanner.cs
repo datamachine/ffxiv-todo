@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using FfxivTodo.Models;
 using Lumina.Excel.Sheets;
@@ -28,7 +29,70 @@ public sealed class ProgressScanner : IDisposable
     {
         foreach (var item in items)
             ScanItem(item);
+        AutoCompleteParents(items);
         _store.Save();
+    }
+
+    private void AutoCompleteParents(IReadOnlyList<ContentItem> items)
+    {
+        var questIdToItem = new Dictionary<uint, ContentItem>();
+        foreach (var item in items)
+        {
+            if (item.QuestId.HasValue)
+                questIdToItem[item.QuestId.Value] = item;
+        }
+
+        foreach (var parent in items)
+        {
+            if (parent.UnlockQuestIds.Length == 0)
+                continue;
+
+            var parentEntry = _store.GetOrCreate(parent.Id);
+            if (parentEntry.IsManual)
+                continue;
+
+            // If parent has an achievement override and the achievement is complete,
+            // that is the definitive completion signal — skip quest chain evaluation
+            if (parent.AchievementId.HasValue && Plugin.UnlockState.IsAchievementListLoaded)
+            {
+                if (IsAchievementComplete(parent.AchievementId.Value))
+                {
+                    parentEntry.Status = ItemStatus.Completed;
+                    continue;
+                }
+            }
+
+            var anyFound = false;
+            var hasInProgress = false;
+            var allComplete = true;
+
+            foreach (var questId in parent.UnlockQuestIds)
+            {
+                if (!questIdToItem.TryGetValue(questId, out var questItem))
+                {
+                    allComplete = false;
+                    continue;
+                }
+
+                anyFound = true;
+                var questStatus = _store.GetOrCreate(questItem.Id).Status;
+
+                if (questStatus == ItemStatus.NotStarted)
+                    allComplete = false;
+                else if (questStatus == ItemStatus.InProgress)
+                    hasInProgress = true;
+            }
+
+            if (!anyFound)
+                continue;
+
+            if (allComplete)
+                parentEntry.Status = ItemStatus.Completed;
+            else if (hasInProgress)
+                parentEntry.Status = ItemStatus.InProgress;
+            else
+                parentEntry.Status = ItemStatus.NotStarted;
+        }
     }
 
     public void ScanZone(IReadOnlyList<ContentItem> items)
@@ -57,18 +121,20 @@ public sealed class ProgressScanner : IDisposable
         if (!hasQuestCheck && !hasAchievementCheck)
             return;
 
+        if (hasAchievementCheck && Plugin.UnlockState.IsAchievementListLoaded)
+        {
+            entry.Status = IsAchievementComplete(item.AchievementId!.Value)
+                ? ItemStatus.Completed
+                : ItemStatus.NotStarted;
+            return;
+        }
+
         if (hasQuestCheck)
         {
             if (QuestHelper.IsQuestComplete(item.QuestId!.Value))
                 entry.Status = ItemStatus.Completed;
-            else
-                entry.Status = ItemStatus.NotStarted;
-        }
-
-        if (hasAchievementCheck)
-        {
-            if (IsAchievementComplete(item.AchievementId!.Value))
-                entry.Status = ItemStatus.Completed;
+            else if (QuestHelper.IsQuestInProgress(item.QuestId.Value))
+                entry.Status = ItemStatus.InProgress;
             else
                 entry.Status = ItemStatus.NotStarted;
         }
