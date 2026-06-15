@@ -71,6 +71,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
         PluginInterface.UiBuilder.OpenMainUi += DrawConfigUI;
         ClientState.Login += OnLogin;
+        ClientState.Logout += OnLogout;
         ClientState.TerritoryChanged += OnTerritoryChanged;
     }
 
@@ -82,6 +83,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;
         PluginInterface.UiBuilder.OpenMainUi -= DrawConfigUI;
         ClientState.Login -= OnLogin;
+        ClientState.Logout -= OnLogout;
         ClientState.TerritoryChanged -= OnTerritoryChanged;
         _progressScanner.Dispose();
         _mainWindow.Dispose();
@@ -110,7 +112,16 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawConfigUI() => _mainWindow.IsOpen = true;
 
-    private void OnLogin() => OnRefresh();
+    private void OnLogin()
+    {
+        OnRefresh();
+        _overlayWindow.IsOpen = Configuration?.OverlayVisible ?? false;
+    }
+
+    private void OnLogout(int type, int code)
+    {
+        _overlayWindow.IsOpen = false;
+    }
 
     private void OnTerritoryChanged(uint territoryId) => _progressScanner.ScanZone(_contentManager.Items);
 
