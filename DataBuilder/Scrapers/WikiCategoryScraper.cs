@@ -485,6 +485,13 @@ public sealed class WikiCategoryScraper
         return items;
     }
 
+    private static readonly HashSet<string> KnownRoleNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Tank", "Physical DPS", "Melee DPS", "Physical Ranged DPS", "Magical Ranged DPS", "Healer", "Master"
+    };
+
+    private static readonly string[] ExpansionNamesShort = ["ARR", "HW", "SB", "ShB", "EW", "DT"];
+
     private static readonly Dictionary<string, string> RoleExpansionFullNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ["ShB"] = "Shadowbringers",
@@ -496,7 +503,6 @@ public sealed class WikiCategoryScraper
     {
         var items = new List<CategoryItem>();
         var currentExpansion = string.Empty;
-        var currentRole = string.Empty;
 
         var headings = contentNode.SelectNodes(".//h2|.//h3");
         if (headings == null) return items;
@@ -512,48 +518,21 @@ public sealed class WikiCategoryScraper
             if (exp != null)
             {
                 currentExpansion = exp;
-                currentRole = string.Empty;
                 continue;
             }
 
-            // h3: role name
-            if (sectionId.Equals("Master_Role_Quests", StringComparison.OrdinalIgnoreCase))
-            {
-                currentRole = "Master";
-            }
-            else
-            {
-                currentRole = sectionId.Replace("_", " ");
-            }
+            // Determine role name from h3 heading
+            var role = sectionId.Equals("Master_Role_Quests", StringComparison.OrdinalIgnoreCase)
+                ? "Master" : sectionId.Replace("_", " ");
 
-            // Parse the quest names from the table (future use for chain linking)
-            var table = FindNextTable(heading);
-            if (table != null)
-            {
-                var trs = table.SelectNodes(".//tr");
-                if (trs != null)
-                {
-                    foreach (var row in trs.Skip(1))
-                    {
-                        var cells = row.SelectNodes(".//td");
-                        if (cells == null || cells.Count < 1) continue;
-                        var link = cells[0].SelectSingleNode(".//a");
-                        if (link != null)
-                        {
-                            var questName = HttpUtility.HtmlDecode(link.InnerText.Trim());
-                            // Quest names are collected for CSV enrichment
-                        }
-                    }
-                }
-            }
+            // Skip non-role headings (Contents, Trivia, References, etc.)
+            if (!KnownRoleNames.Contains(role)) continue;
 
-            // Produce one content item for this role chain
-            // Use full expansion name for display, but set Expansion to short code for sorting/filtering
+            // Produce one content item per role chain
             var expansionFull = RoleExpansionFullNames.GetValueOrDefault(currentExpansion, currentExpansion);
-            var itemName = $"{expansionFull} {currentRole} Role Quests";
             items.Add(new CategoryItem
             {
-                Name = itemName,
+                Name = $"{expansionFull} {role} Role Quests",
                 Category = "RoleQuest",
                 Expansion = currentExpansion
             });
