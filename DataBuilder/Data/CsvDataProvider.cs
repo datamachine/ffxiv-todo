@@ -194,6 +194,9 @@ public sealed class CsvDataProvider
 
     private void LoadAchievements()
     {
+        var path = Path.Combine(_csvCacheDir, "Achievement.csv");
+        if (!File.Exists(path)) return;
+
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             HasHeaderRecord = true,
@@ -201,7 +204,7 @@ public sealed class CsvDataProvider
             BadDataFound = null,
         };
 
-        using var reader = new StreamReader(Path.Combine(_csvCacheDir, "Achievement.csv"));
+        using var reader = new StreamReader(path);
         using var csv = new CsvReader(reader, config);
 
         csv.Read();
