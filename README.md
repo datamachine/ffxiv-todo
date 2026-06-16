@@ -31,9 +31,13 @@ Job quests, role quests, raid series, alliance raids, savage raids, ultimate rai
 
 ## Installation
 
-1. Install [Dalamud](https://github.com/goatcorp/Dalamud) (the FFXIV plugin loader)
-2. Add the dev plugin repository or build from source
-3. Enable "FFXIV Todo" in the Dalamud plugin installer
+1. Install [Dalamud](https://github.com/goatcorp/Dalamud) via [XIVLauncher](https://github.com/goatcorp/FFXIVQuickLauncher)
+2. In-game, open the Dalamud Plugin Installer (`/xlplugins`)
+3. Open **Settings** → **Experimental** → **Custom Plugin Repositories**
+4. Add `https://datamachine.net/ffxiv-plugins/pluginmaster.json`
+5. Save, then search for **FFXIV Todo** and click **Install**
+
+Updates are automatic — Dalamud checks the repo URL for new versions.
 
 ### From source
 
