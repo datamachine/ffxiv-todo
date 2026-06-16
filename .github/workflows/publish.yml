@@ -101,9 +101,6 @@ jobs:
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${PLUGINS_REPO}.git" /tmp/ffxiv-plugins
           cd /tmp/ffxiv-plugins
 
-          # Copy release asset
-          cp "$GITHUB_WORKSPACE/artifacts/release/${ASSET_NAME}" .
-
           # Read the stamped manifest from the release zip
           unzip -p "$GITHUB_WORKSPACE/artifacts/release/${ASSET_NAME}" FfxivTodo.json > /tmp/manifest.json
 
@@ -118,18 +115,16 @@ jobs:
           if [[ "$(cat pluginmaster.json)" == "[]" ]]; then
             echo "[$entry]" > pluginmaster.json
           else
-            # Check if this plugin already has an entry — replace it
+            # Remove existing entry for this plugin, then append new one
             internal_name=$(echo "$entry" | jq -r '.InternalName')
-            if jq -e --arg name "$internal_name" 'map(select(.InternalName != $name))' pluginmaster.json > /tmp/pluginmaster.json; then
-              mv /tmp/pluginmaster.json pluginmaster.json
-            fi
-            # Append new entry
+            jq --arg name "$internal_name" 'map(select(.InternalName != $name))' pluginmaster.json > /tmp/pluginmaster.json
+            mv /tmp/pluginmaster.json pluginmaster.json
             jq --argjson entry "$entry" '. + [$entry]' pluginmaster.json > /tmp/pluginmaster.json
             mv /tmp/pluginmaster.json pluginmaster.json
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pluginmaster.json "${ASSET_NAME}"
-          git commit -m "Add FfxivTodo ${VERSION}" || echo "No changes to commit"
+          git add pluginmaster.json
+          git commit -m "Update FfxivTodo to ${VERSION}" || echo "No changes to commit"
           git push
