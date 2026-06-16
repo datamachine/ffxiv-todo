@@ -1,0 +1,135 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download Dalamud
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L https://goatcorp.github.io/dalamud-distrib/latest.zip -o latest.zip
+          unzip -q latest.zip -d dalamud
+          echo "DALAMUD_HOME=$PWD/dalamud" >> "$GITHUB_ENV"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Validate stable tag and derive release variables
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Tag must match vX.Y.Z without zero-padded segments." >&2
+            exit 1
+          fi
+
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          asset_name="FfxivTodo-${version}.zip"
+
+          {
+            echo "TAG=${tag}"
+            echo "VERSION=${version}"
+            echo "ASSET_NAME=${asset_name}"
+          } >> "$GITHUB_ENV"
+
+      - name: Build solution
+        run: dotnet build -c Release -v minimal
+
+      - name: Run test suite
+        run: dotnet test DataBuilder.Tests/DataBuilder.Tests.csproj
+
+      - name: Build plugin output
+        run: dotnet build FfxivTodo/FfxivTodo.csproj -c Release -o artifacts/plugin-release -v minimal
+
+      - name: Build release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/release/build-release.sh --tag "$GITHUB_REF_NAME" --input artifacts/plugin-release --output artifacts/release
+
+      - name: Validate release outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -f "artifacts/release/${ASSET_NAME}" ]] || {
+            echo "Missing release archive: artifacts/release/${ASSET_NAME}" >&2
+            exit 1
+          }
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$VERSION" --notes ""
+          gh release upload "$TAG" "artifacts/release/$ASSET_NAME" --clobber
+
+      - name: Update shared pluginmaster
+        env:
+          GH_TOKEN: ${{ secrets.PLUGINS_REPO_PAT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PLUGINS_REPO="datamachine/ffxiv-plugins"
+          DOWNLOAD_URL="https://github.com/datamachine/ffxiv-todo/releases/download/${TAG}/${ASSET_NAME}"
+
+          # Clone shared plugin repo
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${PLUGINS_REPO}.git" /tmp/ffxiv-plugins
+          cd /tmp/ffxiv-plugins
+
+          # Copy release asset
+          cp "$GITHUB_WORKSPACE/artifacts/release/${ASSET_NAME}" .
+
+          # Read the stamped manifest from the release zip
+          unzip -p "$GITHUB_WORKSPACE/artifacts/release/${ASSET_NAME}" FfxivTodo.json > /tmp/manifest.json
+
+          # Build pluginmaster entry by merging manifest with download URLs
+          last_update="$(date -u +%s)"
+
+          entry=$(jq -c --arg dl "$DOWNLOAD_URL" --arg lu "$last_update" \
+            '. + {DownloadLinkInstall: $dl, DownloadLinkUpdate: $dl, DownloadLinkTesting: $dl, LastUpdate: ($lu | tonumber)}' \
+            /tmp/manifest.json)
+
+          # If pluginmaster.json is empty array, replace with single entry; otherwise append
+          if [[ "$(cat pluginmaster.json)" == "[]" ]]; then
+            echo "[$entry]" > pluginmaster.json
+          else
+            # Check if this plugin already has an entry — replace it
+            internal_name=$(echo "$entry" | jq -r '.InternalName')
+            if jq -e --arg name "$internal_name" 'map(select(.InternalName != $name))' pluginmaster.json > /tmp/pluginmaster.json; then
+              mv /tmp/pluginmaster.json pluginmaster.json
+            fi
+            # Append new entry
+            jq --argjson entry "$entry" '. + [$entry]' pluginmaster.json > /tmp/pluginmaster.json
+            mv /tmp/pluginmaster.json pluginmaster.json
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pluginmaster.json "${ASSET_NAME}"
+          git commit -m "Add FfxivTodo ${VERSION}" || echo "No changes to commit"
+          git push
