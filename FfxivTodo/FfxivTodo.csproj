@@ -11,7 +11,7 @@
 
     <Name>FFXIV Todo</Name>
     <InternalName>FfxivTodo</InternalName>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
     <Punchline>Track non-MSQ content completion</Punchline>
     <Description>Track unlocking and completion of all non-MSQ content across every expansion. Auto-detects progress from journal and achievements.</Description>
     <ApplicableVersion>any</ApplicableVersion>
