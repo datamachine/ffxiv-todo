@@ -26,11 +26,11 @@ public sealed class ContentManager
 
         using var reader = new StreamReader(stream);
         var json = reader.ReadToEnd();
-        Plugin.Log.Information($"Read content.json: {json.Length} bytes");
+        Plugin.Log.Debug($"Read content.json: {json.Length} bytes");
         try
         {
             var data = JsonConvert.DeserializeObject<ContentDb>(json);
-            Plugin.Log.Information($"Deserialization result: data={(data != null ? "non-null" : "NULL")}, items={data?.Items?.Length ?? -1}");
+            Plugin.Log.Debug($"Deserialization result: data={(data != null ? "non-null" : "NULL")}, items={data?.Items?.Length ?? -1}");
             Items = data?.Items ?? [];
             DataVersion = data?.Version ?? 0;
         }

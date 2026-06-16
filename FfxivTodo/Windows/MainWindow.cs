@@ -29,6 +29,7 @@ public sealed class MainWindow : Window, IDisposable
     private readonly HashSet<FilterState> _selectedStates = [];
     private bool _firstDraw = true;
     private bool _filterDirty;
+    private int _forceTreeOpen;
     private readonly string _filterFilePath;
     
 
@@ -105,36 +106,75 @@ public sealed class MainWindow : Window, IDisposable
         if (_firstDraw)
         {
             _firstDraw = false;
-            Plugin.Log.Information($"MainWindow.Draw() first call: Items={_contentManager.Items.Count}, IsOpen={IsOpen}");
         }
 
-        ImGui.Text($"Content items loaded: {_contentManager.Items.Count}");
-        ImGui.Separator();
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 4);
+        ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, 4);
+
+        DrawProgressSummary();
 
         DrawMenuBar();
         DrawFilters();
 
         if (ImGui.BeginTable("mainColumns", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.BordersInnerV))
         {
-            ImGui.TableSetupColumn("##tree", ImGuiTableColumnFlags.WidthFixed, 350);
-            ImGui.TableSetupColumn("##details", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("##tree", ImGuiTableColumnFlags.WidthStretch, 0.35f);
+            ImGui.TableSetupColumn("##details", ImGuiTableColumnFlags.WidthStretch, 0.65f);
 
             ImGui.TableNextColumn();
+            var treeBg = ImGui.GetStyle().Colors[(int)ImGuiCol.ChildBg];
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(treeBg.X * 0.9f, treeBg.Y * 0.9f, treeBg.Z * 0.9f, treeBg.W));
             ImGui.BeginChild("treeScroll");
             DrawTree();
             ImGui.EndChild();
+            ImGui.PopStyleColor();
             ImGui.TableNextColumn();
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(treeBg.X * 1.05f, treeBg.Y * 1.05f, treeBg.Z * 1.05f, treeBg.W));
             ImGui.BeginChild("detailsScroll");
             DrawDetailPanel();
             ImGui.EndChild();
+            ImGui.PopStyleColor();
             ImGui.EndTable();
         }
+
+        ImGui.PopStyleVar(2);
 
         if (_filterDirty)
         {
             _filterDirty = false;
             SaveFilterState();
         }
+    }
+
+    private void DrawProgressSummary()
+    {
+        var total = _contentManager.Items.Count(i => i.Category != ContentCategory.BlueUnlock);
+        var completed = _contentManager.Items.Count(i =>
+            i.Category != ContentCategory.BlueUnlock &&
+            _progressStore.GetOrCreate(i.Id).Status == ItemStatus.Completed);
+        var pct = total > 0 ? (float)completed / total : 0;
+
+        ImGui.Text($"Progress: {completed}/{total} ({pct * 100:F1}%)");
+        ImGui.SameLine();
+        ImGui.ProgressBar(pct, new Vector2(-1, ImGui.GetTextLineHeight()), "");
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.BeginTooltip();
+            var inProgress = _contentManager.Items.Count(i =>
+                i.Category != ContentCategory.BlueUnlock &&
+                _progressStore.GetOrCreate(i.Id).Status == ItemStatus.InProgress);
+            var unlocked = _contentManager.Items.Count(i =>
+                i.Category != ContentCategory.BlueUnlock &&
+                _progressStore.GetOrCreate(i.Id).Status == ItemStatus.Unlocked);
+            ImGui.Text($"Completed: {completed}");
+            ImGui.Text($"Unlocked: {unlocked}");
+            ImGui.Text($"In Progress: {inProgress}");
+            ImGui.Text($"Remaining: {total - completed - unlocked - inProgress}");
+            ImGui.EndTooltip();
+        }
+
+        ImGui.Separator();
     }
 
     private void DrawMenuBar()
@@ -169,26 +209,21 @@ public sealed class MainWindow : Window, IDisposable
             "Expansion",
             _selectedExpansions,
             MainWindowFilterLogic.GetExpansionLabel);
-        ImGui.SameLine();
+        ImGui.SameLine(0, 16);
         DrawMultiSelectFilter(
             "Category",
             _selectedCategories,
             MainWindowFilterLogic.GetCategoryLabel);
 
+        ImGui.SameLine(0, 16);
         DrawStateChips();
 
-        ImGui.SameLine();
+        ImGui.SameLine(0, 16);
         ImGui.SetNextItemWidth(150);
         ImGui.InputTextWithHint("##search", "Search...", ref _searchText, 100);
         ImGui.SameLine();
         if (ImGui.Button("Clear filters"))
             ClearFilters();
-        ImGui.SameLine();
-        var refreshLabel = "Re-scan Progress";
-        var refreshWidth = ImGui.CalcTextSize(refreshLabel).X + ImGui.GetStyle().FramePadding.X * 2;
-        ImGui.SetCursorPosX(ImGui.GetWindowContentRegionMax().X - refreshWidth);
-        if (ImGui.Button(refreshLabel))
-            _progressScanner.ScanAll(_contentManager.Items);
     }
 
     private void DrawMultiSelectFilter<T>(
@@ -233,7 +268,12 @@ public sealed class MainWindow : Window, IDisposable
         {
             var selected = _selectedStates.Contains(state);
             if (selected)
-                ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.25f, 0.45f, 0.25f, 1f));
+            {
+                var chipColor = MainWindowFilterLogic.GetFilterStateColor(state);
+                ImGui.PushStyleColor(ImGuiCol.Button, chipColor);
+                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, chipColor with { W = 1f });
+                ImGui.PushStyleColor(ImGuiCol.ButtonActive, chipColor with { W = 0.9f });
+            }
 
             if (ImGui.SmallButton(MainWindowFilterLogic.GetStateLabel(state)))
             {
@@ -245,20 +285,41 @@ public sealed class MainWindow : Window, IDisposable
             }
 
             if (selected)
-                ImGui.PopStyleColor();
+            {
+                ImGui.PopStyleColor(3);
+            }
 
             ImGui.SameLine();
         }
+
+        ImGui.NewLine();
     }
 
     private void DrawTree()
     {
+        if (ImGui.Button("Expand All"))
+            _forceTreeOpen = 1;
+        ImGui.SameLine();
+        if (ImGui.Button("Collapse All"))
+            _forceTreeOpen = -1;
+        ImGui.SameLine();
+        if (ImGui.Button("Re-scan Progress"))
+            _progressScanner.ScanAll(_contentManager.Items);
+
         var expansions = _contentManager.GetGroupedByExpansion()
             .Where(g => MainWindowFilterLogic.MatchesExpansion(g.Key, _selectedExpansions));
 
         foreach (var expGroup in expansions)
         {
-            var expLabel = MainWindowFilterLogic.GetExpansionLabel(expGroup.Key);
+            var expItems = expGroup.Where(i => i.Category != ContentCategory.BlueUnlock).ToList();
+            var expCompleted = expItems.Count(i => _progressStore.GetOrCreate(i.Id).Status == ItemStatus.Completed);
+            var expLabel = $"{MainWindowFilterLogic.GetExpansionLabel(expGroup.Key)} [{expCompleted}/{expItems.Count}]";
+
+            if (_forceTreeOpen == 1 || _forceTreeOpen == -1)
+                ImGui.SetNextItemOpen(true);
+            else if (_forceTreeOpen == -2)
+                ImGui.SetNextItemOpen(false);
+
             if (!ImGui.TreeNodeEx($"{expLabel}##exp", ImGuiTreeNodeFlags.DefaultOpen))
                 continue;
 
@@ -277,8 +338,15 @@ public sealed class MainWindow : Window, IDisposable
                 if (items.Count == 0)
                     continue;
 
-                var catLabel = MainWindowFilterLogic.GetCategoryLabel(catGroup.Key);
-                if (!ImGui.TreeNodeEx($"{catLabel} ({items.Count})##cat", ImGuiTreeNodeFlags.DefaultOpen))
+                var catCompleted = items.Count(i => _progressStore.GetOrCreate(i.Id).Status == ItemStatus.Completed);
+                var catLabel = $"{MainWindowFilterLogic.GetCategoryLabel(catGroup.Key)} [{catCompleted}/{items.Count}]";
+
+                if (_forceTreeOpen == 1)
+                    ImGui.SetNextItemOpen(true);
+                else if (_forceTreeOpen == -1 || _forceTreeOpen == -2)
+                    ImGui.SetNextItemOpen(false);
+
+                if (!ImGui.TreeNodeEx($"{catLabel}##cat", ImGuiTreeNodeFlags.DefaultOpen))
                     continue;
 
                 foreach (var item in items)
@@ -291,6 +359,13 @@ public sealed class MainWindow : Window, IDisposable
 
             ImGui.TreePop();
         }
+
+        if (_forceTreeOpen == 1)
+            _forceTreeOpen = 0;
+        else if (_forceTreeOpen == -1)
+            _forceTreeOpen = -2;
+        else if (_forceTreeOpen == -2)
+            _forceTreeOpen = 0;
     }
 
     private IEnumerable<ContentItem> FilterItems(IEnumerable<ContentItem> items)
@@ -329,7 +404,7 @@ public sealed class MainWindow : Window, IDisposable
         var entry = _progressStore.GetOrCreate(item.Id);
         var locked = _contentManager.IsLocked(item.Id);
         var displayName = entry.IsIgnored ? $"(ignored) {item.Name}" : item.Name;
-        var color = entry.IsManual ? new Vector4(0.7f, 0.7f, 1.0f, 1.0f) : GetStatusColor(entry.Status, locked);
+        var color = MainWindowFilterLogic.GetStatusColor(entry.Status, locked, entry.IsManual);
 
         ImGui.PushID((int)item.Id);
 
@@ -364,14 +439,9 @@ public sealed class MainWindow : Window, IDisposable
                 foreach (var p in prereqs)
                 {
                     var pEntry = _progressStore.GetOrCreate(p.Id);
-                    var pStatus = pEntry.Status switch
-                    {
-                        ItemStatus.Completed => "\u2713 Completed",
-                        ItemStatus.Unlocked => "\u25C9 Unlocked",
-                        ItemStatus.InProgress => "\u25D0 In progress",
-                        _ => "\u25CB Not started"
-                    };
-                    ImGui.Text($"  {pStatus} {p.Name}");
+                    var pLocked = _contentManager.IsLocked(p.Id);
+                    var icon = MainWindowFilterLogic.GetStatusIcon(pEntry, pLocked);
+                    ImGui.Text($"  {icon} {p.Name}");
                 }
             }
             ImGui.EndTooltip();
@@ -451,54 +521,60 @@ public sealed class MainWindow : Window, IDisposable
         var entry = _progressStore.GetOrCreate(item.Id);
         var locked = _contentManager.IsLocked(item.Id);
 
+        var color = MainWindowFilterLogic.GetStatusColor(entry.Status, locked, entry.IsManual);
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
         ImGui.Text($"{item.Name}");
+        ImGui.PopStyleColor();
         ImGui.Separator();
 
-        var statusLabel = entry.Status switch
-        {
-            ItemStatus.NotStarted => "Not started",
-            ItemStatus.InProgress => "In progress",
-            ItemStatus.Unlocked => "Unlocked",
-            ItemStatus.Completed => "Completed",
-            _ => entry.Status.ToString()
-        };
         ImGui.Text($"Level: {item.Level}  |  {MainWindowFilterLogic.GetExpansionLabel(item.Expansion)}");
-        ImGui.Text($"{MainWindowFilterLogic.GetCategoryLabel(item.Category)}  |  {statusLabel}");
+        ImGui.Text($"{MainWindowFilterLogic.GetCategoryLabel(item.Category)}  |  {MainWindowFilterLogic.GetStatusLabel(entry.Status)}");
         if (entry.IsManual)
             ImGui.TextColored(new Vector4(0.7f, 0.7f, 1.0f, 1), "(manual override)");
 
         if (item.AchievementId.HasValue)
         {
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Text("Achievement:");
             var achId = item.AchievementId.Value;
             var achName = $"ID {achId}";
             var sheet = Plugin.DataManager.GameData.GetExcelSheet<Achievement>();
             if (sheet?.TryGetRow(achId, out var achRow) == true)
                 achName = achRow.Name.ExtractText();
-            ImGui.Text($"Achievement: {achName}");
+            ImGui.Text($"  {achName}");
             ImGui.SameLine();
             if (ImGui.SmallButton("Wiki"))
             {
                 var wikiUrl = $"https://ffxiv.consolegameswiki.com/wiki/{achName.Replace(" ", "_")}";
                 Process.Start(new ProcessStartInfo(wikiUrl) { UseShellExecute = true });
             }
-
         }
 
         if (locked)
         {
+            ImGui.Spacing();
             ImGui.Separator();
             ImGui.TextColored(new Vector4(1, 0.5f, 0.5f, 1), "Prerequisites:");
             var prereqs = _contentManager.GetPrerequisites(item.Id);
             foreach (var p in prereqs)
             {
                 var pEntry = _progressStore.GetOrCreate(p.Id);
-                var icon = GetStatusIcon(pEntry, false);
-                ImGui.Text($"  {icon} {p.Name} (Lv.{p.Level})");
+                var pLocked = _contentManager.IsLocked(p.Id);
+                var icon = MainWindowFilterLogic.GetStatusIcon(pEntry, pLocked);
+                var pColor = MainWindowFilterLogic.GetStatusColor(pEntry.Status, pLocked);
+
+                ImGui.PushStyleColor(ImGuiCol.Text, pColor);
+                var clicked = ImGui.Selectable($"  {icon} {p.Name} (Lv.{p.Level})##prereq_{p.Id}");
+                ImGui.PopStyleColor();
+                if (clicked)
+                    _selectedItemId = p.Id;
             }
         }
 
         if (item.UnlockQuestIds.Length > 0)
         {
+            ImGui.Spacing();
             ImGui.Separator();
             ImGui.Text("Unlock Quest Chain:");
             var quests = _contentManager.GetUnlockQuests(item.Id);
@@ -511,32 +587,21 @@ public sealed class MainWindow : Window, IDisposable
 
             foreach (var group in groups)
             {
-                var label = group.Key switch
-                {
-                    ItemStatus.Completed => "Completed",
-                    ItemStatus.Unlocked => "Unlocked",
-                    ItemStatus.InProgress => "In Progress",
-                    _ => "Not Started"
-                };
-                var labelColor = group.Key switch
-                {
-                    ItemStatus.Completed => new Vector4(0.3f, 1.0f, 0.3f, 1),
-                    ItemStatus.Unlocked => new Vector4(0.3f, 0.8f, 1.0f, 1),
-                    ItemStatus.InProgress => new Vector4(1.0f, 1.0f, 0.3f, 1),
-                    _ => new Vector4(0.6f, 0.6f, 0.6f, 1)
-                };
-
+                var label = MainWindowFilterLogic.GetStatusLabel(group.Key);
+                var labelColor = MainWindowFilterLogic.GetStatusColor(group.Key, false);
                 ImGui.TextColored(labelColor, $"  {label}:");
+
                 foreach (var (quest, qe) in group)
                 {
                     var qLocked = _contentManager.IsLocked(quest.Id);
-                    var icon = GetStatusIcon(qe, qLocked);
-                    var color = GetStatusColor(qe.Status, qLocked);
-                    ImGui.TextColored(color, $"    {icon} {quest.Name} (Lv.{quest.Level})");
+                    var icon = MainWindowFilterLogic.GetStatusIcon(qe, qLocked);
+                    var qColor = MainWindowFilterLogic.GetStatusColor(qe.Status, qLocked);
+                    ImGui.TextColored(qColor, $"    {icon} {quest.Name} (Lv.{quest.Level})");
                 }
             }
         }
 
+        ImGui.Spacing();
         ImGui.Separator();
 
         if (entry.IsTracked ? ImGui.Button("Untrack") : ImGui.Button("Track"))
@@ -571,19 +636,25 @@ public sealed class MainWindow : Window, IDisposable
                 Process.Start(new ProcessStartInfo(item.WikiUrl) { UseShellExecute = true });
         }
 
-        ImGui.Separator();
+        ImGui.Spacing();
 
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.3f, 0.45f, 0.3f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.35f, 0.55f, 0.35f, 1f));
         if (ImGui.Button("Mark Complete"))
         {
             _progressStore.SetStatus(item.Id, ItemStatus.Completed, true, _contentManager.Items);
             _progressStore.Save();
         }
+        ImGui.PopStyleColor(2);
         ImGui.SameLine();
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.45f, 0.25f, 0.25f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.55f, 0.3f, 0.3f, 1f));
         if (ImGui.Button("Reset"))
         {
             _progressStore.SetStatus(item.Id, ItemStatus.NotStarted, true, _contentManager.Items);
             _progressStore.Save();
         }
+        ImGui.PopStyleColor(2);
         if (entry.IsManual)
         {
             ImGui.SameLine();
@@ -593,30 +664,6 @@ public sealed class MainWindow : Window, IDisposable
                 _progressStore.Save();
             }
         }
-    }
-
-    private static string GetStatusIcon(ProgressEntry entry, bool locked)
-    {
-        if (locked) return "\u2717";
-        return entry.Status switch
-        {
-            ItemStatus.Completed => "\u2713",
-            ItemStatus.Unlocked => "\u25C9",
-            ItemStatus.InProgress => "\u25D0",
-            _ => "\u25CB"
-        };
-    }
-
-    private static Vector4 GetStatusColor(ItemStatus status, bool locked)
-    {
-        if (locked) return new Vector4(0.4f, 0.4f, 0.4f, 1);
-        return status switch
-        {
-            ItemStatus.Completed => new Vector4(0.3f, 1.0f, 0.3f, 1),
-            ItemStatus.Unlocked => new Vector4(0.3f, 0.8f, 1.0f, 1),
-            ItemStatus.InProgress => new Vector4(1.0f, 1.0f, 0.3f, 1),
-            _ => new Vector4(1.0f, 1.0f, 1.0f, 1)
-        };
     }
 
     private void ClearFilters()

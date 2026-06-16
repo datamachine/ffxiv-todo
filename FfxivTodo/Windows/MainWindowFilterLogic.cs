@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using FfxivTodo.Models;
 
 namespace FfxivTodo.Windows;
@@ -66,6 +67,15 @@ public static class MainWindowFilterLogic
         _ => state.ToString()
     };
 
+    public static string GetStatusLabel(ItemStatus status) => status switch
+    {
+        ItemStatus.NotStarted => "Not started",
+        ItemStatus.InProgress => "In progress",
+        ItemStatus.Unlocked => "Unlocked",
+        ItemStatus.Completed => "Completed",
+        _ => status.ToString()
+    };
+
     public static FilterState GetDisplayState(ProgressEntry entry, bool isLocked)
     {
         if (entry.IsIgnored) return FilterState.Ignored;
@@ -103,4 +113,43 @@ public static class MainWindowFilterLogic
 
         return $"{labels.Count} selected";
     }
+
+    public static string GetStatusIcon(ItemStatus status, bool locked)
+    {
+        if (locked) return "\u2717";
+        return status switch
+        {
+            ItemStatus.Completed => "\u2713",
+            ItemStatus.Unlocked => "\u25C9",
+            ItemStatus.InProgress => "\u25D0",
+            _ => "\u25CB"
+        };
+    }
+
+    public static string GetStatusIcon(ProgressEntry entry, bool locked) =>
+        GetStatusIcon(entry.Status, locked);
+
+    public static Vector4 GetStatusColor(ItemStatus status, bool locked, bool isManual = false)
+    {
+        if (isManual) return new Vector4(0.7f, 0.7f, 1.0f, 1);
+        if (locked) return new Vector4(0.4f, 0.4f, 0.4f, 1);
+        return status switch
+        {
+            ItemStatus.Completed => new Vector4(0.4f, 0.85f, 0.4f, 1),
+            ItemStatus.Unlocked => new Vector4(0.3f, 0.8f, 1.0f, 1),
+            ItemStatus.InProgress => new Vector4(0.9f, 0.8f, 0.25f, 1),
+            _ => new Vector4(1.0f, 1.0f, 1.0f, 1)
+        };
+    }
+
+    public static Vector4 GetFilterStateColor(FilterState state) => state switch
+    {
+        FilterState.Completed => new Vector4(0.25f, 0.45f, 0.25f, 1f),
+        FilterState.Unlocked => new Vector4(0.2f, 0.35f, 0.55f, 1f),
+        FilterState.InProgress => new Vector4(0.55f, 0.45f, 0.15f, 1f),
+        FilterState.Locked => new Vector4(0.5f, 0.2f, 0.2f, 1f),
+        FilterState.Ignored => new Vector4(0.35f, 0.2f, 0.35f, 1f),
+        FilterState.NotStarted => new Vector4(0.6f, 0.6f, 0.6f, 1f),
+        _ => new Vector4(0.4f, 0.4f, 0.4f, 1f)
+    };
 }

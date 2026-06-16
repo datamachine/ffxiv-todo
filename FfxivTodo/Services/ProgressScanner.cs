@@ -56,9 +56,7 @@ public sealed class ProgressScanner : IDisposable
             if (parent.AchievementId.HasValue && Plugin.UnlockState.IsAchievementListLoaded)
             {
                 var achId = parent.AchievementId.Value;
-                var achComplete = IsAchievementComplete(achId);
-                Plugin.Log.Debug($"AutoCompleteParents: '{parent.Name}' achId={achId} complete={achComplete}");
-                if (achComplete)
+                if (IsAchievementComplete(achId))
                 {
                     parentEntry.Status = ItemStatus.Completed;
                     continue;
@@ -140,7 +138,6 @@ public sealed class ProgressScanner : IDisposable
         {
             var achId = item.AchievementId!.Value;
             var isComplete = IsAchievementComplete(achId);
-            Plugin.Log.Debug($"ScanItem: '{item.Name}' achId={achId} isComplete={isComplete}");
             entry.Status = isComplete
                 ? ItemStatus.Completed
                 : ItemStatus.NotStarted;
@@ -177,7 +174,6 @@ public sealed class ProgressScanner : IDisposable
             return false;
         }
         var result = Plugin.UnlockState.IsAchievementComplete(row);
-        Plugin.Log.Debug($"IsAchievementComplete({achievementId}): result={result}");
         return result;
     }
 

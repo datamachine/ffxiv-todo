@@ -27,33 +27,33 @@ public sealed class MapFlagHelper
 
     public void PlaceFlag(ContentItem item)
     {
-        Plugin.Log.Information($"[MapFlag] PlaceFlag: {item.Name}");
+        Plugin.Log.Debug($"[MapFlag] PlaceFlag: {item.Name}");
 
         if (!item.LocationMapX.HasValue || !item.LocationMapY.HasValue)
         {
-            Plugin.Log.Information($"[MapFlag] No map coords for {item.Name}");
+            Plugin.Log.Debug($"[MapFlag] No map coords for {item.Name}");
             return;
         }
 
-        Plugin.Log.Information($"[MapFlag] Coords: X={item.LocationMapX}, Y={item.LocationMapY}, Name={item.LocationTerritoryName}");
+        Plugin.Log.Debug($"[MapFlag] Coords: X={item.LocationMapX}, Y={item.LocationMapY}, Name={item.LocationTerritoryName}");
 
         var territoryId = ResolveTerritoryId(item);
         if (territoryId == null)
         {
-            Plugin.Log.Information($"[MapFlag] Territory not resolved for {item.Name} (name={item.LocationTerritoryName})");
+            Plugin.Log.Debug($"[MapFlag] Territory not resolved for {item.Name} (name={item.LocationTerritoryName})");
             return;
         }
 
-        Plugin.Log.Information($"[MapFlag] Resolved territory: {territoryId}");
+        Plugin.Log.Debug($"[MapFlag] Resolved territory: {territoryId}");
 
         var map = GetMapForTerritory(territoryId.Value);
         if (map == null)
         {
-            Plugin.Log.Information($"[MapFlag] No map for territory {territoryId}");
+            Plugin.Log.Debug($"[MapFlag] No map for territory {territoryId}");
             return;
         }
 
-        Plugin.Log.Information($"[MapFlag] Map: row={map.Value.RowId}, sizeFactor={map.Value.SizeFactor}, offsetX={map.Value.OffsetX}, offsetY={map.Value.OffsetY}");
+        Plugin.Log.Debug($"[MapFlag] Map: row={map.Value.RowId}, sizeFactor={map.Value.SizeFactor}, offsetX={map.Value.OffsetX}, offsetY={map.Value.OffsetY}");
 
         var worldPos = MapToWorld(
             map.Value,
@@ -61,7 +61,7 @@ public sealed class MapFlagHelper
             item.LocationMapY.Value
         );
 
-        Plugin.Log.Information($"[MapFlag] World pos: ({worldPos.X}, {worldPos.Y}, {worldPos.Z})");
+        Plugin.Log.Debug($"[MapFlag] World pos: ({worldPos.X}, {worldPos.Y}, {worldPos.Z})");
 
         var result = Plugin.GameGui.OpenMapWithMapLink(
             territoryId.Value,
@@ -69,7 +69,7 @@ public sealed class MapFlagHelper
             worldPos
         );
 
-        Plugin.Log.Information($"[MapFlag] OpenMapWithMapLink result: {result}");
+        Plugin.Log.Debug($"[MapFlag] OpenMapWithMapLink result: {result}");
     }
 
     private static uint? ResolveTerritoryId(ContentItem item)
@@ -88,7 +88,7 @@ public sealed class MapFlagHelper
         var territorySheet = Plugin.DataManager.GameData.GetExcelSheet<TerritoryType>();
         if (territorySheet == null)
         {
-            Plugin.Log.Information($"[MapFlag] TerritoryType sheet is null");
+            Plugin.Log.Debug($"[MapFlag] TerritoryType sheet is null");
             return null;
         }
 
@@ -104,18 +104,18 @@ public sealed class MapFlagHelper
 
             if (placeNameStr.Equals(name, StringComparison.OrdinalIgnoreCase))
             {
-                Plugin.Log.Information($"[MapFlag] Exact match: name='{name}' == placeName='{placeNameStr}' -> territory={territory.RowId}");
+                Plugin.Log.Debug($"[MapFlag] Exact match: name='{name}' == placeName='{placeNameStr}' -> territory={territory.RowId}");
                 exact ??= territory.RowId;
             }
             else if (placeNameStr.Contains(name, StringComparison.OrdinalIgnoreCase))
             {
-                Plugin.Log.Information($"[MapFlag] Contains match: name='{name}' in placeName='{placeNameStr}' -> territory={territory.RowId}");
+                Plugin.Log.Debug($"[MapFlag] Contains match: name='{name}' in placeName='{placeNameStr}' -> territory={territory.RowId}");
                 contains ??= territory.RowId;
             }
         }
 
         var result = exact ?? contains;
-        Plugin.Log.Information($"[MapFlag] FindTerritoryByName('{name}') -> {result}");
+        Plugin.Log.Debug($"[MapFlag] FindTerritoryByName('{name}') -> {result}");
         return result;
     }
 
